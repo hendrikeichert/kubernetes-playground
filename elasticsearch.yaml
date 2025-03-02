@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: elasticsearch
+  labels:
+    app: elasticsearch
+spec:
+  ports:
+  - port: 9200
+    name: rest
+    protocol: TCP
+  - port: 9300
+    name: inter-node
+    protocol: TCP
+  clusterIP: None  # Headless service for StatefulSet
+  selector:
+    app: elasticsearch
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+  namespace: elasticsearch
+spec:
+  serviceName: elasticsearch
+  replicas: 1  # Single node for simplicity
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9200"
+        prometheus.io/path: "/_prometheus/metrics"  # Elasticsearch 8.x metric endpoint (if enabled)
+    spec:
+      containers:
+      - name: elasticsearch
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+        ports:
+        - containerPort: 9200
+          name: rest
+        - containerPort: 9300
+          name: inter-node
+        env:
+        - name: discovery.type
+          value: "single-node"  # Run as a single-node cluster
+        - name: xpack.security.enabled
+          value: "false"  # Disable security for dev simplicity (optional)
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "0.5"
+          limits:
+            memory: "2Gi"
+            cpu: "1"

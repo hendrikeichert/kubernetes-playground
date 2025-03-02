@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: adminer-mongodb
+  namespace: mongodb
+  labels:
+    app: adminer
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: adminer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adminer-mongodb
+  namespace: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: adminer
+  template:
+    metadata:
+      labels:
+        app: adminer
+    spec:
+      containers:
+      - name: adminer
+        # use image with mongodb support
+        image: adminer-mongodb:0.1.0
+        imagePullPolicy: Never  # Disables pulling if image exists locally
+        ports:
+        - containerPort: 80
+        env:
+        - name: ADMINER_DEFAULT_SERVER
+          value: "mongodb"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adminer-postgres
+  namespace: postgresql
+  labels:
+    app: adminer
+spec:
+  ports:
+  - port: 8080
+    targetPort: 80
+    protocol: TCP
+  selector:
+    app: adminer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adminer-postgres
+  namespace: postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: adminer
+  template:
+    metadata:
+      labels:
+        app: adminer
+    spec:
+      containers:
+      - name: adminer
+        image: adminer:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ADMINER_DEFAULT_SERVER
+          value: "postgres"
