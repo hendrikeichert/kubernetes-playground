@@ -1,0 +1,112 @@
+# spicedb-secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: spicedb-postgres-secret
+  namespace: spicedb
+type: Opaque
+stringData:
+  # password
+  postgres-password: cGFzc3dvcmQgLW4K
+
+---
+# spicedb-migration.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spicedb-migration
+  namespace: spicedb
+spec:
+  template:
+    spec:
+      containers:
+      - name: spicedb-migration
+        image: authzed/spicedb:latest
+        command: ["spicedb", "migrate", "head"]
+        env:
+        - name: SPICEDB_DATASTORE_ENGINE
+          value: "postgres"
+        - name: SPICEDB_DATASTORE_CONN_URI          
+          value: "postgres://admin:password@postgres.postgresql.svc.cluster.local:5432/spicedb?sslmode=disable"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spicedb-postgres-secret
+              key: postgres-password
+      restartPolicy: OnFailure
+---
+# spicedb-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spicedb
+  namespace: spicedb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spicedb
+  template:
+    metadata:
+      labels:
+        app: spicedb
+    spec:
+      containers:
+      - name: spicedb
+        image: authzed/spicedb:latest
+        args: ["serve"]
+        ports:
+        - containerPort: 50051 # gRPC port
+        - containerPort: 8443  # HTTP port
+        env:
+        - name: SPICEDB_GRPC_PRESHARED_KEY
+          value: "your-secret-key" # Replace with a secure key
+        - name: SPICEDB_DATASTORE_ENGINE
+          value: "postgres"
+        - name: SPICEDB_DATASTORE_CONN_URI
+          value: "postgres://admin:password@postgres.postgresql.svc.cluster.local:5432/spicedb?sslmode=disable"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spicedb-postgres-secret
+              key: postgres-password
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spicedb-service
+  namespace: spicedb
+spec:
+  selector:
+    app: spicedb
+  ports:
+  - name: grpc
+    port: 50051
+    targetPort: 50051
+
+  - name: http
+    port: 8443
+    targetPort: 8443
+  type: ClusterIP
+
+---
+# spicedb-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spicedb-ingress
+  namespace: spicedb
+spec:
+  rules:
+  - host: spicedb.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: spicedb-service
+            port:
+              number: 50051
+

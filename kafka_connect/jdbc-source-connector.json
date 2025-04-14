@@ -1,0 +1,19 @@
+{
+    "name": "postgres-users-connector",
+    "config": {
+      "connector.class": "io.confluent.connect.jdbc.JdbcSourceConnector",
+      "tasks.max": "1",
+      "connection.url": "jdbc:postgresql://postgres:5432/mydb",
+      "connection.user": "admin",
+      "connection.password": "password",
+      "table.whitelist": "users",
+      "mode": "timestamp",
+      "timestamp.column.name": "updated_at",
+      "poll.interval.ms": "5000",
+      "topic.prefix": "postgres-",
+      "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+      "key.converter.schemas.enable": "false",
+      "value.converter.schemas.enable": "false"
+    }
+  }
