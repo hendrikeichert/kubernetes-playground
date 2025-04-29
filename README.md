@@ -1,7 +1,7 @@
 # Kafka
-https://phoenixnap.com/kb/kafka-on-kubernetes
+see also https://phoenixnap.com/kb/kafka-on-kubernetes
 
-## create namespace
+## create namespaces
 kubectl apply -f namespaces.yaml 
 ## apply zookeeper
 kubectl apply -f zookeeper.yaml 
@@ -38,3 +38,11 @@ https://packages.confluent.io/
 docker build -t adminer-mongodb:latest adminer_mongodb/.
 docker buildx build -t adminer-mongodb:latest adminer_mongodb/.
 minikube image load adminer-mongodb:latest
+
+# PostgreSqlDB
+https://jdbc.postgresql.org/download/postgresql-42.7.5.jar
+
+# Adminer
+for DB access via webservice
+
+# Prometheus

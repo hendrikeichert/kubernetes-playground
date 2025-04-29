@@ -1,3 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-connect
+  namespace: kafka
+spec:
+  ports:
+  - port: 8083
+    name: rest-api
+  selector:
+    app: kafka-connect
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,49 +27,39 @@ spec:
     spec:
       containers:
       - name: kafka-connect
-        image: confluentinc/cp-kafka-connect:latest
+        #image: confluentinc/cp-kafka-connect
+        image: custom-kafka-connect
         ports:
         - containerPort: 8083
         env:
         - name: CONNECT_BOOTSTRAP_SERVERS
-          value: "kafka:9092" # Replace with your Kafka service
+          value: "kafka:9092"
+        - name: CONNECT_REST_ADVERTISED_HOST_NAME
+          value: "kafka-connect"
         - name: CONNECT_GROUP_ID
           value: "connect-cluster"
+        - name: CONNECT_CONFIG_STORAGE_TOPIC
+          value: "connect-configs"
+        - name: CONNECT_OFFSET_STORAGE_TOPIC
+          value: "connect-offsets"
+        - name: CONNECT_STATUS_STORAGE_TOPIC
+          value: "connect-status"
         - name: CONNECT_KEY_CONVERTER
           value: "org.apache.kafka.connect.json.JsonConverter"
         - name: CONNECT_VALUE_CONVERTER
           value: "org.apache.kafka.connect.json.JsonConverter"
-        - name: CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE
-          value: "true"
-        - name: CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE
-          value: "true"
-        - name: CONNECT_OFFSET_STORAGE_TOPIC
-          value: "connect-offsets"
-        - name: CONNECT_CONFIG_STORAGE_TOPIC
-          value: "connect-configs"
-        - name: CONNECT_STATUS_STORAGE_TOPIC
-          value: "connect-status"
-        - name: CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR
-          value: "1"
         - name: CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR
+          value: "1"
+        - name: CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR
           value: "1"
         - name: CONNECT_STATUS_STORAGE_REPLICATION_FACTOR
           value: "1"
-        - name: CONNECT_REST_ADVERTISED_HOST_NAME
-          value: "kafka-connect"
-        - name: CONNECT_REST_PORT
-          value: "8083"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: kafka-connect-service
-  namespace: kafka
-spec:
-  selector:
-    app: kafka-connect
-  ports:
-  - protocol: TCP
-    port: 8083
-    targetPort: 8083
-  type: ClusterIP
+        - name: CONNECT_PLUGIN_PATH
+          value: "/usr/share/java,/usr/share/confluent-hub-components,/usr/local/share/kafka/plugins"
+        volumeMounts:
+        - name: jdbc-driver
+          mountPath: "/usr/share/confluent-hub-components"
+      volumes:
+      - name: jdbc-driver
+        hostPath:
+          path: "/tmp/kafka-connect-jdbc"  # Local path with the JAR

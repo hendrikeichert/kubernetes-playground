@@ -13,6 +13,25 @@ spec:
   selector:
     app: postgres
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-script
+  namespace: postgresql
+data:
+  init-dbs.sh: |
+    #!/bin/bash
+    set -e
+    if [ -n "$POSTGRES_ADDITIONAL_DBS" ]; then
+      IFS=',' read -ra DBS <<< "$POSTGRES_ADDITIONAL_DBS"
+      for db in "${DBS[@]}"; do
+        echo "Creating database: $db"
+        psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+          CREATE DATABASE "$db";
+    EOSQL
+          done
+        fi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,3 +59,14 @@ spec:
           value: "password"
         - name: POSTGRES_DB
           value: "mydb"
+        - name: POSTGRES_ADDITIONAL_DBS
+          value: spicedb
+        volumeMounts:
+        - name: init-script
+          mountPath: /docker-entrypoint-initdb.d/init-dbs.sh
+          subPath: init-dbs.sh
+      volumes:
+      - name: init-script
+        configMap:
+          name: postgres-init-script
+          defaultMode: 0755  # Ensure the script is executable
