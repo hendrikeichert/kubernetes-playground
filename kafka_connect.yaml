@@ -28,7 +28,7 @@ spec:
       containers:
       - name: kafka-connect
         #image: confluentinc/cp-kafka-connect
-        image: custom-kafka-connect
+        image: custom-kafka-connect:0.0.1
         ports:
         - containerPort: 8083
         env:
@@ -56,10 +56,10 @@ spec:
           value: "1"
         - name: CONNECT_PLUGIN_PATH
           value: "/usr/share/java,/usr/share/confluent-hub-components,/usr/local/share/kafka/plugins"
-        volumeMounts:
-        - name: jdbc-driver
-          mountPath: "/usr/share/confluent-hub-components"
-      volumes:
-      - name: jdbc-driver
-        hostPath:
-          path: "/tmp/kafka-connect-jdbc"  # Local path with the JAR
+     #   volumeMounts:
+     #   - name: jdbc-driver
+     #     mountPath: "/usr/share/confluent-hub-components"
+     # volumes:
+     # - name: jdbc-driver
+     #   hostPath:
+     #     path: "/tmp/kafka-connect-jdbc"  # Local path with the JAR

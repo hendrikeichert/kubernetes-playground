@@ -1,4 +1,9 @@
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: postgresql
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: postgres
@@ -60,7 +65,7 @@ spec:
         - name: POSTGRES_DB
           value: "mydb"
         - name: POSTGRES_ADDITIONAL_DBS
-          value: spicedb
+          value: spicedb,keycloak
         volumeMounts:
         - name: init-script
           mountPath: /docker-entrypoint-initdb.d/init-dbs.sh

@@ -21,6 +21,13 @@ echo "Test Message" | kcat -P -b kafka:29092 -t testtopic -p -1
 kcat -C -b kafka:29092 -t testtopic -p -1
 ```
 
+## show kafka topics
+in the kafka pod exec
+kafka-topics.sh --list --bootstrap-server localhost:9092
+
+## show topic content
+kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic connect-configs --from-beginning
+
 # MongoDB
 
 ## build docker image with adminer and support for mongodb
