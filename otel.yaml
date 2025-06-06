@@ -1,0 +1,100 @@
+# ConfigMap for OpenTelemetry Collector configuration
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: obligations
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: otel
+data:
+  otel-collector-config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+    exporters:
+      debug: {}
+      prometheus:
+        endpoint: "0.0.0.0:8889"
+    processors:
+      batch:
+    service:
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheus, debug]
+---
+# Deployment for OpenTelemetry Collector
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: otel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+      - name: otel-collector
+        image: otel/opentelemetry-collector:latest
+        args: ["--config=/conf/otel-collector-config.yaml"]
+        ports:
+        - containerPort: 4317   # OTLP gRPC
+        - containerPort: 4318   # OTLP HTTP
+        - containerPort: 8889   # Prometheus exporter
+        volumeMounts:
+        - name: config-vol
+          mountPath: /conf
+      volumes:
+      - name: config-vol
+        configMap:
+          name: otel-collector-config
+---
+# service for otel-server
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel
+  namespace: otel
+  labels:
+    app: otel-collector
+spec:
+  ports:
+  - port: 27017
+    targetPort: 27017
+    protocol: TCP
+  selector:
+    app: otel-collector
+---
+# Deployment for Grafana
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        ports:
+        - containerPort: 3000
