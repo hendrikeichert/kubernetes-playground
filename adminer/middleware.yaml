@@ -1,0 +1,30 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: adminer-redirect-slash
+  namespace: webui
+spec:
+  redirectRegex:
+    regex: ^https?://([^/]+)/adminer$
+    replacement: https://$1/adminer/
+    permanent: false
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: adminer-strip-prefix
+  namespace: webui
+spec:
+  stripPrefix:
+    prefixes:
+      - /adminer
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: adminer-iframe-sameorigin
+  namespace: webui
+spec:
+  headers:
+    customResponseHeaders:
+      X-Frame-Options: SAMEORIGIN

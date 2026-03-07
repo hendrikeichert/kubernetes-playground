@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-api
+  namespace: webui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard-api
+  template:
+    metadata:
+      labels:
+        app: dashboard-api
+    spec:
+      serviceAccountName: dashboard-api
+      containers:
+        - name: dashboard-api
+          image: golang:1.23-alpine
+          imagePullPolicy: IfNotPresent
+          command:
+            - go
+            - run
+            - /app/main.go
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: BASE_PATH
+              value: /dashboard-api
+            - name: POSTGRES_HOST
+              value: postgresql.postgresql.svc.cluster.local
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: MONGODB_HOST
+              value: mongodb.mongodb.svc.cluster.local
+            - name: MONGODB_PORT
+              value: "27017"
+            - name: ELASTICSEARCH_URL
+              value: http://elasticsearch.elasticsearch.svc.cluster.local:9200/_cluster/health
+          volumeMounts:
+            - name: app-code
+              mountPath: /app/main.go
+              subPath: main.go
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 35
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+      volumes:
+        - name: app-code
+          configMap:
+            name: dashboard-api-app

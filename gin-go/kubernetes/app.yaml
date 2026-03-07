@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-gin-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: my-gin-app
+  template:
+    metadata:
+      labels:
+        app: my-gin-app
+    spec:
+      containers:
+      - name: my-gin-app
+        image: my-gin-app:latest
+        envFrom:
+        - configMapRef:
+            name: my-gin-app-config
+        - secretRef:
+            name: my-gin-app-secrets
+        ports:
+        - containerPort: 8080

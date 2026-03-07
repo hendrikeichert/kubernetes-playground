@@ -1,0 +1,12 @@
+services:
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    restart: unless-stopped
+    ports:
+      - 80:80  # HTTP (may conflict; change to 8081:80 if QTS uses 80)
+      - 443:443  # HTTPS (change to 8443:443 if conflict)
+      - 81:81  # NPM admin UI
+    volumes:
+      - /share/CACHEDEV2_DATA/VMs/container-station-data/application/npm/data:/data
+      - /share/CACHEDEV2_DATA/VMs/container-station-data/application/npm/letsencrypt:/etc/letsencrypt
+    network_mode: bridge

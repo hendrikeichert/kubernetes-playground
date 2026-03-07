@@ -1,0 +1,17 @@
+{
+  "error_code": 500,
+  "message": "Failed to find any class that implements Connector and which name matches io.confluent.connect.jdbc.JdbcSourceConnector, 
+  available connectors are: 
+  PluginDesc{klass=class org.apache.kafka.connect.mirror.MirrorCheckpointConnector, 
+    name='org.apache.kafka.connect.mirror.MirrorCheckpointConnector', version='7.9.0-ccs', encodedVersion=7.9.0-ccs, type=source, typeName='source', location='file:/usr/share/java/kafka/'}, 
+  PluginDesc{klass=class org.apache.kafka.connect.mirror.MirrorCheckpointConnector, 
+    name='org.apache.kafka.connect.mirror.MirrorCheckpointConnector', version='7.9.0-ccs', encodedVersion=7.9.0-ccs, type=source, typeName='source', location='classpath'}, 
+  PluginDesc{klass=class org.apache.kafka.connect.mirror.MirrorHeartbeatConnector, 
+    name='org.apache.kafka.connect.mirror.MirrorHeartbeatConnector', version='7.9.0-ccs', encodedVersion=7.9.0-ccs, type=source, typeName='source', location='file:/usr/share/java/kafka/'}, 
+  PluginDesc{klass=class org.apache.kafka.connect.mirror.MirrorHeartbeatConnector, 
+    name='org.apache.kafka.connect.mirror.MirrorHeartbeatConnector', version='7.9.0-ccs', encodedVersion=7.9.0-ccs, type=source, typeName='source', location='classpath'}, 
+  PluginDesc{klass=class org.apache.kafka.connect.mirror.MirrorSourceConnector, 
+    name='org.apache.kafka.connect.mirror.MirrorSourceConnector', version='7.9.0-ccs', encodedVersion=7.9.0-ccs, type=source, typeName='source', location='file:/usr/share/java/kafka/'}, 
+    PluginDesc{klass=class org.apache.kafka.connect.mirror.MirrorSourceConnector, 
+        name='org.apache.kafka.connect.mirror.MirrorSourceConnector', version='7.9.0-ccs', encodedVersion=7.9.0-ccs, type=source, typeName='source', location='classpath'}"
+}

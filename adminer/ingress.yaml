@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: adminer
+  namespace: webui
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.middlewares: webui-adminer-redirect-slash@kubernetescrd,webui-adminer-strip-prefix@kubernetescrd,webui-adminer-iframe-sameorigin@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: k3s.local
+      http:
+        paths:
+          - path: /adminer
+            pathType: Prefix
+            backend:
+              service:
+                name: adminer
+                port:
+                  number: 80
+          - path: /dashboard-api
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard-api
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webui-index
+                port:
+                  number: 80

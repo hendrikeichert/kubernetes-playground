@@ -1,0 +1,464 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webui-index-html
+  namespace: webui
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Kubernetes WebUI</title>
+        <style>
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: grid;
+            grid-template-columns: 260px 1fr;
+          }
+          .menu {
+            border-right: 1px solid #d7d7d7;
+            padding: 16px;
+            background: #f8f9fb;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+          }
+          .menu h1 {
+            margin: 0 0 16px;
+            font-size: 18px;
+          }
+          .menu details {
+            margin-bottom: 8px;
+          }
+          .menu summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border: 1px solid #d7d7d7;
+            border-radius: 6px;
+            color: #1a1a1a;
+            background: #f1f4f8;
+            font-weight: 600;
+          }
+          .menu summary::-webkit-details-marker {
+            display: none;
+          }
+          .menu .tree-leaf {
+            display: block;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border: 1px solid #d7d7d7;
+            border-radius: 6px;
+            color: #1a1a1a;
+            text-decoration: none;
+            background: #fff;
+            margin-left: 12px;
+          }
+          .menu .tree-leaf:hover {
+            background: #eef4ff;
+          }
+          .menu .tree-leaf.active {
+            background: #dde9ff;
+            border-color: #9db7ff;
+          }
+          .content {
+            height: 100vh;
+          }
+          iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+          }
+        </style>
+      </head>
+      <body>
+        <aside class="menu">
+          <h1>WebUI</h1>
+          <details open>
+            <summary>Databases</summary>
+            <a class="tree-leaf" href="#" data-target="/adminer/">Adminer (PostgreSQL & MongoDB)</a>
+            <a class="tree-leaf" href="#" data-target="__es_test__">Elasticsearch Test</a>
+          </details>
+          <details open>
+            <summary>Camunda</summary>
+            <a class="tree-leaf" href="#" data-target="/camunda/operate">Camunda Operate</a>
+            <a class="tree-leaf" href="#" data-target="/camunda/tasklist">Camunda Tasklist</a>
+            <a class="tree-leaf" href="#" data-target="/camunda/identity">Camunda Identity</a>
+          </details>
+          <details open>
+            <summary>Dashboard</summary>
+            <a class="tree-leaf" href="#" data-target="__health__">Service Health Dashboard</a>
+            <a class="tree-leaf" href="#" data-target="__pod_status__">Pod Status</a>
+            <a class="tree-leaf" href="#" data-target="__config__">Service Configuration</a>
+          </details>
+        </aside>
+        <main class="content">
+          <iframe id="viewer" src="/adminer/" title="Selected page"></iframe>
+        </main>
+
+        <script>
+          const viewer = document.getElementById('viewer');
+          const links = document.querySelectorAll('.menu [data-target]');
+
+          function escapeHtml(value) {
+            return String(value)
+              .replaceAll('&', '&amp;')
+              .replaceAll('<', '&lt;')
+              .replaceAll('>', '&gt;')
+              .replaceAll('"', '&quot;')
+              .replaceAll("'", '&#39;');
+          }
+
+          function setActiveLink(activeLink) {
+            links.forEach((link) => link.classList.remove('active'));
+            if (activeLink) {
+              activeLink.classList.add('active');
+            }
+          }
+
+          async function checkService(service) {
+            try {
+              const response = await fetch(service.url, { method: 'GET', redirect: 'follow' });
+              if (!response.ok) {
+                return { status: `HTTP ${response.status}` };
+              }
+
+              if (service.type === 'dashboard-api') {
+                try {
+                  const payload = await response.json();
+                  if (service.name === 'Elasticsearch Service') {
+                    const cluster = payload?.details?.clusterStatus ? ` (${payload.details.clusterStatus})` : '';
+                    return { status: `${payload.status}${cluster}` };
+                  }
+                  return { status: payload.status || 'UP' };
+                } catch (error) {
+                  return { status: 'UP' };
+                }
+              }
+
+              if (service.name === 'Elasticsearch Service') {
+                try {
+                  const payload = await response.json();
+                  const cluster = payload.status ? ` (${payload.status})` : '';
+                  return { status: `UP${cluster}` };
+                } catch (error) {
+                  return { status: 'UP' };
+                }
+              }
+
+              if (service.name === 'PostgreSQL Service') {
+                return { status: 'UP (via Adminer)' };
+              }
+
+              return { status: 'UP' };
+            } catch (error) {
+              return { status: 'DOWN' };
+            }
+          }
+
+          async function showHealthDashboard() {
+            const services = [
+              { name: 'Adminer UI', url: '/adminer/' },
+              { name: 'PostgreSQL Service', url: '/dashboard-api/health/postgres', type: 'dashboard-api' },
+              { name: 'MongoDB Service', url: '/dashboard-api/health/mongodb', type: 'dashboard-api' },
+              { name: 'Elasticsearch Service', url: '/dashboard-api/health/elasticsearch', type: 'dashboard-api' },
+              { name: 'Camunda Operate', url: '/camunda/operate' },
+              { name: 'Camunda Tasklist', url: '/camunda/tasklist' },
+              { name: 'Camunda Identity', url: '/camunda/identity' }
+            ];
+
+            const results = await Promise.all(
+              services.map(async (service) => ({
+                ...service,
+                ...(await checkService(service))
+              }))
+            );
+
+            const rows = results
+              .map((service) => {
+                const color =
+                  service.status.startsWith('UP')
+                    ? '#1f8b24'
+                    : '#b42318';
+                const linkCell = `<a href="${escapeHtml(service.url)}" target="_self">${escapeHtml(service.url)}</a>`;
+                return `
+                  <tr>
+                    <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(service.name)}</td>
+                    <td style="padding:8px;border-bottom:1px solid #eee;">${linkCell}</td>
+                    <td style="padding:8px;border-bottom:1px solid #eee;color:${color};font-weight:bold;">${escapeHtml(service.status)}</td>
+                  </tr>
+                `;
+              })
+              .join('');
+
+            viewer.srcdoc = `
+              <!doctype html>
+              <html lang="en">
+              <head><meta charset="UTF-8" /><title>Service Health Dashboard</title></head>
+              <body style="font-family:Arial,sans-serif;padding:16px;">
+                <h2 style="margin-top:0;">Service Health Dashboard</h2>
+                <table style="width:100%;border-collapse:collapse;">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Service</th>
+                      <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">URL</th>
+                      <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </body>
+              </html>
+            `;
+          }
+
+          async function showElasticsearchTest() {
+            const checks = [
+              { name: 'Ingress Root', url: '/elasticsearch/' },
+              { name: 'Cluster Health', url: '/elasticsearch/_cluster/health' }
+            ];
+
+            const results = await Promise.all(
+              checks.map(async (check) => {
+                try {
+                  const response = await fetch(check.url, { method: 'GET', redirect: 'follow' });
+                  const responseText = await response.text();
+                  const preview = responseText.length > 240
+                    ? `${responseText.slice(0, 240)}...`
+                    : responseText;
+                  return {
+                    ...check,
+                    status: response.ok ? 'UP' : `HTTP ${response.status}`,
+                    preview
+                  };
+                } catch (error) {
+                  return {
+                    ...check,
+                    status: 'DOWN',
+                    preview: ''
+                  };
+                }
+              })
+            );
+
+            const rows = results
+              .map((result) => {
+                const color = result.status === 'UP' ? '#1f8b24' : '#b42318';
+                return `
+                  <tr>
+                    <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(result.name)}</td>
+                    <td style="padding:8px;border-bottom:1px solid #eee;"><a href="${escapeHtml(result.url)}" target="_self">${escapeHtml(result.url)}</a></td>
+                    <td style="padding:8px;border-bottom:1px solid #eee;color:${color};font-weight:bold;">${escapeHtml(result.status)}</td>
+                    <td style="padding:8px;border-bottom:1px solid #eee;font-family:monospace;white-space:pre-wrap;word-break:break-word;">${escapeHtml(result.preview)}</td>
+                  </tr>
+                `;
+              })
+              .join('');
+
+            viewer.srcdoc = `
+              <!doctype html>
+              <html lang="en">
+              <head><meta charset="UTF-8" /><title>Elasticsearch Test</title></head>
+              <body style="font-family:Arial,sans-serif;padding:16px;">
+                <h2 style="margin-top:0;">Elasticsearch Test</h2>
+                <p>Ingress endpoint: <a href="/elasticsearch/" target="_self">/elasticsearch/</a></p>
+                <table style="width:100%;border-collapse:collapse;">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Check</th>
+                      <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">URL</th>
+                      <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Status</th>
+                      <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Response Preview</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </body>
+              </html>
+            `;
+          }
+
+          async function showPodStatus() {
+            try {
+              const response = await fetch('/dashboard-api/pod-status', { method: 'GET', redirect: 'follow' });
+              if (!response.ok) {
+                viewer.srcdoc = `
+                  <!doctype html>
+                  <html lang="en">
+                  <head><meta charset="UTF-8" /><title>Pod Status</title></head>
+                  <body style="font-family:Arial,sans-serif;padding:16px;">
+                    <h2 style="margin-top:0;">Pod Status</h2>
+                    <p style="color:#b42318;font-weight:bold;">Failed to load pod status: HTTP ${response.status}</p>
+                  </body>
+                  </html>
+                `;
+                return;
+              }
+
+              const payload = await response.json();
+              const services = Array.isArray(payload.services) ? payload.services : [];
+
+              const rows = services
+                .map((service) => {
+                  const status = service.status || 'UNKNOWN';
+                  const color = status === 'UP' ? '#1f8b24' : status === 'DEGRADED' ? '#b26a00' : '#b42318';
+                  const pods = Array.isArray(service.pods) ? service.pods : [];
+                  const podDetails = pods.length === 0
+                    ? '<em>no pods</em>'
+                    : pods
+                        .map((pod) => `${escapeHtml(pod.name)} [${escapeHtml(pod.phase)} | ${pod.readyContainers}/${pod.totalContainers} ready | restarts ${pod.restartCount}]`)
+                        .join('<br/>');
+
+                  return `
+                    <tr>
+                      <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(service.service || 'unknown')}</td>
+                      <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(service.namespace || '-')}</td>
+                      <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(service.selector || '-')}</td>
+                      <td style="padding:8px;border-bottom:1px solid #eee;color:${color};font-weight:bold;">${escapeHtml(status)}</td>
+                      <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(String(service.readyPods ?? 0))}/${escapeHtml(String(service.totalPods ?? 0))}</td>
+                      <td style="padding:8px;border-bottom:1px solid #eee;font-family:monospace;white-space:pre-wrap;word-break:break-word;">${podDetails}</td>
+                    </tr>
+                  `;
+                })
+                .join('');
+
+              viewer.srcdoc = `
+                <!doctype html>
+                <html lang="en">
+                <head><meta charset="UTF-8" /><title>Pod Status</title></head>
+                <body style="font-family:Arial,sans-serif;padding:16px;">
+                  <h2 style="margin-top:0;">Pod Status</h2>
+                  <p><strong>Overall:</strong> ${escapeHtml(payload.status || 'UNKNOWN')}</p>
+                  <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                      <tr>
+                        <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Service</th>
+                        <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Namespace</th>
+                        <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Selector</th>
+                        <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Status</th>
+                        <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Ready Pods</th>
+                        <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Pods</th>
+                      </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                  </table>
+                </body>
+                </html>
+              `;
+            } catch (error) {
+              viewer.srcdoc = `
+                <!doctype html>
+                <html lang="en">
+                <head><meta charset="UTF-8" /><title>Pod Status</title></head>
+                <body style="font-family:Arial,sans-serif;padding:16px;">
+                  <h2 style="margin-top:0;">Pod Status</h2>
+                  <p style="color:#b42318;font-weight:bold;">Failed to load pod status endpoint.</p>
+                </body>
+                </html>
+              `;
+            }
+          }
+
+          function showServiceConfiguration() {
+            viewer.srcdoc = `
+              <!doctype html>
+              <html lang="en">
+              <head><meta charset="UTF-8" /><title>Service Configuration</title></head>
+              <body style="font-family:Arial,sans-serif;padding:16px;">
+                <h2 style="margin-top:0;">Service Configuration</h2>
+                <p><strong>Ingress Host:</strong> k3s.local</p>
+                <p><strong>Camunda Base Path:</strong> /camunda</p>
+                <p><strong>TLS:</strong> Enabled</p>
+                <h3>External Endpoints</h3>
+                <ul>
+                  <li><a href="/elasticsearch/" target="_self">https://k3s.local/elasticsearch</a></li>
+                  <li><strong>PostgreSQL TCP:</strong> k3s.local:443 (TLS/SNI)</li>
+                  <li><a href="/adminer/" target="_self">https://k3s.local/adminer</a></li>
+                </ul>
+                <h3>Configured Endpoints</h3>
+                <ul>
+                  <li><a href="/adminer/" target="_self">/adminer/</a></li>
+                  <li><a href="/camunda/operate" target="_self">/camunda/operate</a></li>
+                  <li><a href="/camunda/tasklist" target="_self">/camunda/tasklist</a></li>
+                  <li><a href="/camunda/identity" target="_self">/camunda/identity</a></li>
+                </ul>
+                <h3>Adminer Login Presets</h3>
+                <ul>
+                  <li><strong>PostgreSQL</strong>: System=PostgreSQL, Server=postgresql.postgresql.svc.cluster.local, Username=camunda, Password=camunda, Database=camunda</li>
+                  <li><strong>MongoDB</strong>: System=MongoDB, Server=mongodb.mongodb.svc.cluster.local:27017, Username=admin, Password=password, Database=admin</li>
+                </ul>
+                <h3>PostgreSQL Service</h3>
+                <ul>
+                  <li><strong>Namespace:</strong> postgresql</li>
+                  <li><strong>Service:</strong> postgresql (ClusterIP)</li>
+                  <li><strong>Internal DNS:</strong> postgresql.postgresql.svc.cluster.local</li>
+                  <li><strong>Port:</strong> 5432/TCP</li>
+                  <li><strong>Image:</strong> postgres:16</li>
+                  <li><strong>Readiness/Liveness:</strong> pg_isready</li>
+                  <li><strong>External Host:</strong> k3s.local</li>
+                  <li><strong>External Port:</strong> 443 (Traefik TCP)</li>
+                  <li><strong>Database:</strong> camunda</li>
+                  <li><strong>JDBC:</strong> jdbc:postgresql://k3s.local:443/camunda?sslmode=require</li>
+                </ul>
+                <h3>Elasticsearch Service</h3>
+                <ul>
+                  <li><strong>Namespace:</strong> elasticsearch</li>
+                  <li><strong>Service:</strong> elasticsearch (ClusterIP)</li>
+                  <li><strong>Internal DNS:</strong> elasticsearch.elasticsearch.svc.cluster.local</li>
+                  <li><strong>Ports:</strong> 9200/TCP (HTTP), 9300/TCP (transport)</li>
+                  <li><strong>Image:</strong> docker.elastic.co/elasticsearch/elasticsearch:8.19.12</li>
+                  <li><strong>Readiness Path:</strong> /_cluster/health?wait_for_status=yellow&timeout=1s</li>
+                </ul>
+                <h3>MongoDB Service</h3>
+                <ul>
+                  <li><strong>Namespace:</strong> mongodb</li>
+                  <li><strong>Service:</strong> mongodb (ClusterIP)</li>
+                  <li><strong>Internal DNS:</strong> mongodb.mongodb.svc.cluster.local</li>
+                  <li><strong>Port:</strong> 27017/TCP</li>
+                  <li><strong>Image:</strong> mongo:6.0</li>
+                  <li><strong>External Admin UI:</strong> /adminer/</li>
+                </ul>
+              </body>
+              </html>
+            `;
+          }
+
+          links.forEach((link) => {
+            link.addEventListener('click', (event) => {
+              event.preventDefault();
+              const target = link.getAttribute('data-target');
+              setActiveLink(link);
+              if (target === '__health__') {
+                showHealthDashboard();
+                return;
+              }
+              if (target === '__es_test__') {
+                showElasticsearchTest();
+                return;
+              }
+              if (target === '__pod_status__') {
+                showPodStatus();
+                return;
+              }
+              if (target === '__config__') {
+                showServiceConfiguration();
+                return;
+              }
+              viewer.removeAttribute('srcdoc');
+              viewer.src = target;
+            });
+          });
+
+          if (links.length > 0) {
+            setActiveLink(links[0]);
+          }
+        </script>
+      </body>
+    </html>

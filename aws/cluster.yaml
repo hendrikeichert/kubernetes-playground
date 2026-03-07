@@ -1,0 +1,16 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: my-eks-cluster
+  region: us-west-2  # Change to your region
+vpc:
+  id: vpc-12345678  # Your existing VPC ID
+  subnets:
+    private:
+      us-west-2a: subnet-12345678  # Private subnet IDs
+      us-west-2b: subnet-87654321
+managedNodeGroups:
+  - name: ng-1
+    instanceType: t3.medium
+    minSize: 1
+    maxSize: 2

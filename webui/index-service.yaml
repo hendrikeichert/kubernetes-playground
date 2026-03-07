@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: webui-index
+  namespace: webui
+spec:
+  selector:
+    app: webui-index
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP

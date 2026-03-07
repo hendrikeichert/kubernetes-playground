@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mongodb-atlas
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongodb-keyfile
+  namespace: mongodb-atlas
+type: generic
+data:
+  mongodb-keyfile: |
+    cXhtQVJaUXVMUzdEa0NkYlRaN3dIVWoxcW9pZ3R0dTZXeGFHNUtyeElGNkpncUV0dmVXRUUyY0FX
+    RHA1VHZFZwpZb0RGbzk5ZjJ5NExZVmw3V01uaG9tdTZ1cUF1c05SZjk4VTFIVlJLbEloTjRvSlMz
+    MFpsT2R6a00zQzNnL0hvCmhTa0RmSzV3cWVWU3cyaXpmemxrOWsrTHVlbU1HZFNhTmVCeUFnUVFu
+    Z0VEYWhNcmd3NkowV25DZzBNSW5iaEQKMUloVS9tMGxNZzV3VDF6bExUSXltME5XTWdLcWlwcDFp
+    M1BDbm9sZW5YaTluWFB5MDNkczFhSVFIMndwTUwvQQpOd3JYZ01xV1hwalFrK3lnaE1zMnBiYzNO
+    OGltVWtjZUdvN3RSbnR2OVZQbTByZFN1am5xemZ0QkVnOE5iTTJXCjQ2Yi9yYjY3TlR6dCs0R1Jr
+    VGJlZHFybXFEZ3dGdTNVSEpxQ2JtTVRnYWZUVFBxUDY2ZEhiSnRqRkJiU1BCRVMKMjJzN0YxcENH
+    UDR6cGJycXJoVlR6VXlqUEJTREI2UWROTUpBOUpSamVaaWNvdjVHc2ZxZzdLa2xyaCs3aytlQQp3
+    dnRsb2ZNUmhDaHNYaDJ6QVFieVIzZFVWbUJRZFN5MUhyMUNpZGFleHpJSlBQS2NpVVBQVWZRbFZv
+    ZXJNNTFlCjA4ZzNtcVRuUFBndWYwaUNRd0NTNXVlajZ1QzJPczJDakpIZzNKa0ZpRWl0M0NGSmhl
+    UmZraHJyanNSb3diT2cKcFlnUlVybmhIZlJXU29ad1UzemFaUFJqOERxdnhmRWRic25pV2Y0dTV3
+    Y1M0WStjR21BeHAyYjV0UGdhNUpKZgo0aVM4QmNDQmxuTU1ZN2czc2VtY0dWUThITDlqMUpyOEpI
+    ZGlNVzFlVXN3TG5UZXBxQzFtRXFJc2pPeDhCM2ZTCkhhVVh2aTF1Vm51bjh2ZWs2VHZYdXBmZSs4
+    VzJLYy90aWpwUUFaMVd0WlRtKzZKVktkenROVmZKNFpIZW1QUGQKYVlJbjlXaDUyNnhOM3JsV3hL
+    RWlBc2kvbS92MmR5UDVLYVFOWGNVTFg4Y1B4WGlneTlzOVZ2QUxXUTB0YlJQWApNdHJSYTNITHVo
+    TGIwT1JTdnVHa01sYlhMYUprNExVZ1pzekFxeUJhQmMyTTFKOWVWUS9hSFNPZnMzQXFNMzdpClNt
+    OC8yTWJRZ1pCYnltT1lJVUdFSjJHZFFkMHNNZzRJZEJEdmxOeEQyaW1sTDdTZUladWw0ZDE0Sktt
+    aHZrQ1UKNldkQ1dsUG45UURnVXBCdU96OHdhdnpMSkpkUHo2K3lLRlF0dDRCNVJOZWRmcG1NCg==
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb-atlas
+  namespace: mongodb-atlas
+spec:
+  serviceName: mongodb-atlas-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb-atlas
+  template:
+    metadata:
+      labels:
+        app: mongodb-atlas
+    spec:
+      containers:
+      - name: mongodb-atlas
+        image: mongo:latest
+        args:         
+        - --replSet
+        - rs0
+        - --keyFile
+        - /etc/mongodb-keyfile
+        ports:
+        - containerPort: 27017
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: "admin"
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: "password"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "500m"
+          limits:
+            memory: "512Mi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: mongodb-keyfile
+          mountPath: /etc/mongodb-keyfile
+          subPath: mongodb-keyfile
+      volumes:
+      - name: mongodb-keyfile
+        secret:
+          secretName: mongodb-keyfile
+          defaultMode: 0400
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: mongodb-atlas
+spec:
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      containers:
+      - name: myapp
+        image: ubuntu:latest
+        command: ["tail","-f", "/dev/null"] # Placeholder command"]
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: mongodb-keyfile
+          mountPath: /etc/mongodb-keyfile
+          subPath: mongodb-keyfile
+      volumes:
+      - name: mongodb-keyfile
+        secret:
+          secretName: mongodb-keyfile
+          defaultMode: 0400
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+  namespace: mongodb-atlas
+spec:
+  clusterIP: None # Headless service for StatefulSet
+  selector:
+    app: mongodb
+  ports:
+  - port: 27017
+    targetPort: 27017
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongodb-atlas-init-replica-set
+  namespace: mongodb-atlas
+spec:
+  template:
+    spec:
+      containers:
+      - name: init-replica-set
+        image: mongo:latest
+        command:
+        - mongosh
+        - --host
+        - mongodb-0.mongodb-service.default.svc.cluster.local
+        - --eval
+        - 'rs.initiate({ _id: "rs0", members: [ { _id: 0, host: "mongodb-0.mongodb-service.default.svc.cluster.local:27017" }, { _id: 1, host: "mongodb-1.mongodb-service.default.svc.cluster.local:27017" }, { _id: 2, host: "mongodb-2.mongodb-service.default.svc.cluster.local:27017" } ] })'
+        - --keyFile
+        - /etc/mongodb-keyfile
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          value: "admin"
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          value: "password"
+        volumeMounts:
+        - name: mongodb-keyfile
+          mountPath: /etc/mongodb-keyfile
+          subPath: mongodb-keyfile
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+      volumes:
+      - name: mongodb-keyfile
+        secret:
+          secretName: mongodb-keyfile
+          defaultMode: 0400
+      restartPolicy: OnFailure

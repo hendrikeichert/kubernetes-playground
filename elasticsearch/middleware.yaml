@@ -1,0 +1,9 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: elasticsearch-strip-prefix
+  namespace: elasticsearch
+spec:
+  stripPrefix:
+    prefixes:
+      - /elasticsearch

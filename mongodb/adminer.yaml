@@ -31,14 +31,20 @@ spec:
     spec:
       containers:
       - name: adminer
-        # use image with mongodb support
-        image: adminer-mongodb:0.1.0
-        imagePullPolicy: Never  # Disables pulling if image exists locally
+        image: adminer:latest
+        imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 80
+        - containerPort: 8080
         env:
         - name: ADMINER_DEFAULT_SERVER
           value: "mongodb"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
 
 ---
 apiVersion: v1
@@ -80,3 +86,10 @@ spec:
         env:
         - name: ADMINER_DEFAULT_SERVER
           value: "postgres"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"

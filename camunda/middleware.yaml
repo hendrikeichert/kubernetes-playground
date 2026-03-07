@@ -1,0 +1,10 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: camunda-redirect-root
+  namespace: camunda
+spec:
+  redirectRegex:
+    regex: ^https?://([^/]+)/camunda$
+    replacement: https://$1/camunda/operate
+    permanent: false

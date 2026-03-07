@@ -1,0 +1,55 @@
+# Disable the bundled Elasticsearch sub-chart
+elasticsearch:
+  enabled: false
+
+global:
+  ingress:
+    enabled: true
+    className: traefik
+    host: k3s.local
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.middlewares: camunda-camunda-redirect-root@kubernetescrd
+      traefik.ingress.kubernetes.io/router.tls: "true"
+    tls:
+      enabled: true
+      secretName: camunda-platform-tls
+  elasticsearch:
+    enabled: true
+    external: true
+    url:
+      protocol: http          # ← change to https if your ES uses TLS
+      host: elasticsearch.elasticsearch.svc.cluster.local   # or internal service DNS, e.g. elasticsearch.elasticsearch.svc.cluster.local
+      port: 9200
+    auth:
+      username: elastic
+      secret:
+        inlineSecret: "your-es-password"   # ← production: use existingSecret instead
+    # tls:
+    #   enabled: true
+    #   existingSecret: elastic-jks      # for self-signed certs (see docs)
+    prefix: "k3s-camunda-zeebe-record"   # strongly recommended if ES is shared
+
+# Minimal orchestration settings for k3s / single-node
+orchestration:
+  clusterSize: "1"
+  partitionCount: "1"
+  replicationFactor: "1"
+  contextPath: "/camunda"
+  env:
+    - name: SERVER_FORWARD_HEADERS_STRATEGY
+      value: framework
+  affinity: {}
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+# Persistence (required for Zeebe state)
+zeebe:
+  persistence:
+    enabled: true
+    # storageClassName: longhorn   # uncomment if using Longhorn

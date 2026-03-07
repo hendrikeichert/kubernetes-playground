@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: go-gin
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gin-app-secret
+  namespace: go-gin
+type: Opaque
+stringData:
+  .env: |-
+    QUARKUS_HTTP_PORT=8080
+    QUARKUS_PROFILE=dev
+    GIN_MODE=debug
+
+    # PostgreSQL configuration
+    QUARKUS_DATASOURCE_DB_TYPE=postgresql
+    QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://postgres.postgresql.svc.cluster.local:5432/mydb
+    QUARKUS_DATASOURCE_USERNAME=postgres
+    QUARKUS_DATASOURCE_PASSWORD=yourpassword
+    QUARKUS_DATASOURCE_QUERY=SELECT id, name, email FROM users
+
+    # MongoDB configuration
+    QUARKUS_MONGODB_CONNECTION_STRING=mongodb://admin:password@localhost:27017/mydb
+    QUARKUS_MONGODB_DATABASE=mydb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: go-gin-app
+  namespace: go-gin
+  labels:
+    app: go-gin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: go-gin
+  template:
+    metadata:
+      labels:
+        app: go-gin
+    spec:
+      containers:
+      - name: go-gin
+        image: 192.168.1.100:32768/go-gin:v250731c
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: dotenv
+          mountPath: "/app/.env"
+          subPath: ".env"
+          readOnly: true
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+     #   command: ["ash", "-c"]
+     #   args: ["cat .env"]
+      volumes:
+      - name: dotenv
+        secret:
+          secretName: gin-app-secret
+          items:
+          - key: .env
+            path: .env

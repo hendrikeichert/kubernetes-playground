@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: adminer-mongodb
+  namespace: mongodb
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.middlewares: mongodb-adminer-mongodb-redirect-slash@kubernetescrd,mongodb-adminer-mongodb-strip-prefix@kubernetescrd,mongodb-adminer-mongodb-iframe-sameorigin@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: k3s.local
+      http:
+        paths:
+          - path: /adminer-mongodb
+            pathType: Prefix
+            backend:
+              service:
+                name: adminer-mongodb
+                port:
+                  number: 8080
