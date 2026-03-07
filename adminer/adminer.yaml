@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: adminer-mongodb
+  namespace: mongodb
+  labels:
+    app: adminer
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: adminer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adminer-mongodb
+  namespace: mongodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: adminer
+  template:
+    metadata:
+      labels:
+        app: adminer
+    spec:
+      containers:
+      - name: adminer
+        image: adminer:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ADMINER_DEFAULT_SERVER
+          value: "mongodb"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adminer-postgres
+  namespace: postgresql
+  labels:
+    app: adminer
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: adminer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adminer-postgres
+  namespace: postgresql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: adminer
+  template:
+    metadata:
+      labels:
+        app: adminer
+    spec:
+      containers:
+      - name: adminer
+        image: adminer:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ADMINER_DEFAULT_SERVER
+          value: "postgres"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
