@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redpanda-console-config
+  namespace: redpanda
+data:
+  config.yaml: |
+    kafka:
+      brokers:
+        - kafka.confluent.svc.cluster.local:9092
+      schemaRegistry:
+        enabled: true
+        urls:
+          - http://schema-registry.confluent.svc.cluster.local:8081
+    connect:
+      enabled: true
+      clusters:
+        - name: kafka-connect
+          url: http://kafka-connect.kafka-connect.svc.cluster.local:8083

@@ -17,21 +17,38 @@ spec:
         - name: postgresql
           image: postgres:16
           imagePullPolicy: IfNotPresent
+          args:
+            - postgres
+            - -c
+            - wal_level=logical
+            - -c
+            - max_replication_slots=10
+            - -c
+            - max_wal_senders=10
           ports:
             - containerPort: 5432
           envFrom:
             - secretRef:
-                name: postgresql-secret
+                name: postgresql-admin-secret
+            - secretRef:
+                name: postgresql-camunda-secret
+            - secretRef:
+                name: postgresql-keycloak-secret
+            - secretRef:
+                name: postgresql-spicedb-secret
           resources:
             requests:
-              cpu: "200m"
-              memory: "512Mi"
+              cpu: "100m"
+              memory: "256Mi"
             limits:
-              cpu: "1000m"
-              memory: "1Gi"
+              cpu: "500m"
+              memory: "768Mi"
           volumeMounts:
             - name: postgresql-data
               mountPath: /var/lib/postgresql/data
+            - name: postgresql-initdb
+              mountPath: /docker-entrypoint-initdb.d/01-init-app-databases.sh
+              subPath: 01-init-app-databases.sh
           readinessProbe:
             exec:
               command:
@@ -52,3 +69,7 @@ spec:
         - name: postgresql-data
           persistentVolumeClaim:
             claimName: postgresql-data
+        - name: postgresql-initdb
+          configMap:
+            name: postgresql-initdb
+            defaultMode: 0775

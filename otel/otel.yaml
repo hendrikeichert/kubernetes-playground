@@ -1,100 +1,134 @@
-# ConfigMap for OpenTelemetry Collector configuration
+# otel namespace and alloy DaemonSet for log collection, and otel-collector Deployment and Service for receiving telemetry data from alloy and exporting it to Grafana Cloud
 apiVersion: v1
-kind: Namespace
+kind: ServiceAccount
 metadata:
-  name: obligations
+  name: alloy
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: alloy-otel-reader
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "nodes/proxy", "nodes/stats", "namespaces"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: alloy-otel-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: alloy-otel-reader
+subjects:
+  - kind: ServiceAccount
+    name: alloy
+    namespace: otel
+
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: otel-collector-config
-  namespace: otel
+  name: alloy-config
 data:
-  otel-collector-config.yaml: |
-    receivers:
-      otlp:
-        protocols:
-          grpc:
-          http:
-    exporters:
-      debug: {}
-      prometheus:
-        endpoint: "0.0.0.0:8889"
-    processors:
-      batch:
-    service:
-      pipelines:
-        metrics:
-          receivers: [otlp]
-          processors: [batch]
-          exporters: [prometheus, debug]
+  config.alloy: |
+    otelcol.exporter.otlp "gateway" {
+      client {
+        endpoint = "otel-collector.otel.svc.cluster.local:4317"
+        tls {
+          insecure = true
+        }
+      }
+    }
+
+    otelcol.processor.batch "default" {
+      send_batch_size = 256
+      timeout = "2s"
+
+      output {
+        logs    = [otelcol.exporter.otlp.gateway.input]
+        metrics = [otelcol.exporter.otlp.gateway.input]
+      }
+    }
+
+    otelcol.receiver.filelog "pod_logs" {
+      include          = [
+        "/var/log/pods/camunda_*/*/*.log",
+        "/var/log/pods/mongodb_*/*/*.log",
+        "/var/log/pods/postgresql_*/*/*.log",
+        "/var/log/pods/elasticsearch_*/*/*.log",
+        "/var/log/pods/webui_*/*/*.log",
+      ]
+      exclude          = ["/var/log/pods/otel_*/*/*.log"]
+      start_at         = "end"
+      include_file_path = true
+
+      output {
+        logs = [otelcol.processor.batch.default.input]
+      }
+    }
+
 ---
-# Deployment for OpenTelemetry Collector
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
-  name: otel-collector
-  namespace: otel
+  name: alloy
 spec:
-  replicas: 1
   selector:
     matchLabels:
-      app: otel-collector
+      app: alloy
   template:
     metadata:
       labels:
-        app: otel-collector
+        app: alloy
     spec:
+      serviceAccountName: alloy
       containers:
-      - name: otel-collector
-        image: otel/opentelemetry-collector:latest
-        args: ["--config=/conf/otel-collector-config.yaml"]
-        ports:
-        - containerPort: 4317   # OTLP gRPC
-        - containerPort: 4318   # OTLP HTTP
-        - containerPort: 8889   # Prometheus exporter
-        volumeMounts:
-        - name: config-vol
-          mountPath: /conf
+        - name: alloy
+          image: grafana/alloy:v1.7.2
+          args:
+            - run
+            - /etc/alloy/config.alloy
+            - --server.http.listen-addr=0.0.0.0:12345
+            - --stability.level=public-preview
+          ports:
+            - name: http
+              containerPort: 12345
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+            - name: varlogpods
+              mountPath: /var/log/pods
+              readOnly: true
       volumes:
-      - name: config-vol
-        configMap:
-          name: otel-collector-config
+        - name: config
+          configMap:
+            name: alloy-config
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+            type: Directory
+
 ---
-# service for otel-server
 apiVersion: v1
 kind: Service
 metadata:
-  name: otel
-  namespace: otel
-  labels:
-    app: otel-collector
+  name: alloy
 spec:
+  selector:
+    app: alloy
   ports:
-  - port: 27017
-    targetPort: 27017
-    protocol: TCP
-  selector:
-    app: otel-collector
----
-# Deployment for Grafana
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: grafana
-  namespace: grafana
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: grafana
-  template:
-    metadata:
-      labels:
-        app: grafana
-    spec:
-      containers:
-      - name: grafana
-        image: grafana/grafana:latest
-        ports:
-        - containerPort: 3000
+    - name: http
+      port: 12345
+      targetPort: 12345
+      protocol: TCP

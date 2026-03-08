@@ -2,8 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: grafana
-  namespace: observability
+  name: grafana  
   labels:
     app: grafana
 spec:
@@ -18,15 +17,34 @@ spec:
     spec:
       containers:
       - name: grafana
-        image: grafana/grafana:latest
+        image: grafana/grafana:11.5.2
         env:
         - name: GF_AUTH_ANONYMOUS_ENABLED
           value: "true"
         - name: GF_AUTH_ANONYMOUS_ORG_ROLE
           value: "Admin"
+        - name: GF_SERVER_ROOT_URL
+          value: "https://k3s.local/grafana/"
+        - name: GF_SERVER_SERVE_FROM_SUB_PATH
+          value: "true"
+        - name: GF_SECURITY_ALLOW_EMBEDDING
+          value: "true"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "192Mi"
+          limits:
+            cpu: "300m"
+            memory: "384Mi"
         volumeMounts:
         - name: grafana-datasources
           mountPath: /etc/grafana/provisioning/datasources
+        - name: grafana-dashboards-provider
+          mountPath: /etc/grafana/provisioning/dashboards/dashboardproviders.yaml
+          subPath: dashboardproviders.yaml
+        - name: grafana-dashboards
+          mountPath: /var/lib/grafana/dashboards/otel-overview.json
+          subPath: otel-overview.json
         ports:
         - containerPort: 3000
           name: web
@@ -34,29 +52,227 @@ spec:
       - name: grafana-datasources
         configMap:
           name: grafana-datasources
+      - name: grafana-dashboards-provider
+        configMap:
+          name: grafana-dashboards-provider
+      - name: grafana-dashboards
+        configMap:
+          name: grafana-dashboards
 ---
 # grafana-datasources.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-datasources
-  namespace: observability
+  namespace: grafana
 data:
   datasource.yaml: |
     apiVersion: 1
     datasources:
     - name: Prometheus
       type: prometheus
-      url: http://prometheus:9090
+      url: http://prometheus.prometheus.svc.cluster.local:9090
       access: proxy
       isDefault: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-provider
+  namespace: grafana
+data:
+  dashboardproviders.yaml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: OTel
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: grafana
+data:
+  otel-overview.json: |
+    {
+      "id": null,
+      "uid": "otel-overview",
+      "title": "OTel Overview",
+      "tags": ["otel", "collector", "alloy"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "15s",
+      "editable": true,
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Accepted Spans/s",
+          "id": 1,
+          "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+          "targets": [
+            {
+              "expr": "sum(rate(otelcol_receiver_accepted_spans[5m]))",
+              "legendFormat": "accepted",
+              "refId": "A"
+            }
+          ],
+          "datasource": "Prometheus"
+        },
+        {
+          "type": "stat",
+          "title": "Accepted Log Records/s",
+          "id": 2,
+          "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+          "targets": [
+            {
+              "expr": "sum(rate(otelcol_receiver_accepted_log_records[5m]))",
+              "legendFormat": "accepted logs",
+              "refId": "A"
+            }
+          ],
+          "datasource": "Prometheus"
+        },
+        {
+          "type": "stat",
+          "title": "Accepted Metric Points/s",
+          "id": 3,
+          "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+          "targets": [
+            {
+              "expr": "sum(rate(otelcol_receiver_accepted_metric_points[5m]))",
+              "legendFormat": "accepted metrics",
+              "refId": "A"
+            }
+          ],
+          "datasource": "Prometheus"
+        },
+        {
+          "type": "stat",
+          "title": "Refused Data/s",
+          "id": 4,
+          "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+          "targets": [
+            {
+              "expr": "sum(rate(otelcol_receiver_refused_spans[5m])) + sum(rate(otelcol_receiver_refused_log_records[5m])) + sum(rate(otelcol_receiver_refused_metric_points[5m]))",
+              "legendFormat": "refused total",
+              "refId": "A"
+            }
+          ],
+          "datasource": "Prometheus"
+        },
+        {
+          "type": "timeseries",
+          "title": "OTel Receiver Throughput",
+          "id": 5,
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+          "targets": [
+            {
+              "expr": "sum(rate(otelcol_receiver_accepted_spans[5m]))",
+              "legendFormat": "spans/s",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(otelcol_receiver_accepted_log_records[5m]))",
+              "legendFormat": "logs/s",
+              "refId": "B"
+            },
+            {
+              "expr": "sum(rate(otelcol_receiver_accepted_metric_points[5m]))",
+              "legendFormat": "metrics/s",
+              "refId": "C"
+            }
+          ],
+          "datasource": "Prometheus"
+        },
+        {
+          "type": "timeseries",
+          "title": "OTel Exporter Throughput",
+          "id": 6,
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+          "targets": [
+            {
+              "expr": "sum(rate(otelcol_exporter_sent_spans[5m]))",
+              "legendFormat": "sent spans/s",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(otelcol_exporter_sent_log_records[5m]))",
+              "legendFormat": "sent logs/s",
+              "refId": "B"
+            },
+            {
+              "expr": "sum(rate(otelcol_exporter_sent_metric_points[5m]))",
+              "legendFormat": "sent metrics/s",
+              "refId": "C"
+            }
+          ],
+          "datasource": "Prometheus"
+        },
+        {
+          "type": "timeseries",
+          "title": "OTel Exporter Send Failures",
+          "id": 7,
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+          "targets": [
+            {
+              "expr": "sum(rate(otelcol_exporter_send_failed_spans[5m]))",
+              "legendFormat": "failed spans/s",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(otelcol_exporter_send_failed_log_records[5m]))",
+              "legendFormat": "failed logs/s",
+              "refId": "B"
+            },
+            {
+              "expr": "sum(rate(otelcol_exporter_send_failed_metric_points[5m]))",
+              "legendFormat": "failed metrics/s",
+              "refId": "C"
+            }
+          ],
+          "datasource": "Prometheus"
+        },
+        {
+          "type": "timeseries",
+          "title": "OTel Process Memory (MiB)",
+          "id": 8,
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+          "targets": [
+            {
+              "expr": "process_resident_memory_bytes{job=~\"otel-collector|alloy\"} / 1024 / 1024",
+              "legendFormat": "{{job}}",
+              "refId": "A"
+            }
+          ],
+          "datasource": "Prometheus"
+        }
+      ],
+      "time": {
+        "from": "now-30m",
+        "to": "now"
+      },
+      "timepicker": {},
+      "templating": {
+        "list": []
+      },
+      "annotations": {
+        "list": []
+      }
+    }
 ---
 # grafana-service.yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: grafana
-  namespace: observability
+  namespace: grafana
 spec:
   selector:
     app: grafana
@@ -65,3 +281,45 @@ spec:
     port: 3000
     targetPort: 3000
   type: ClusterIP
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: grafana-redirect-slash
+  namespace: grafana
+spec:
+  redirectRegex:
+    regex: ^https?://([^/]+)/grafana$
+    replacement: https://$1/grafana/
+    permanent: false
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: grafana-iframe-sameorigin
+  namespace: grafana
+spec:
+  headers:
+    customFrameOptionsValue: "SAMEORIGIN"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: grafana
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.middlewares: grafana-grafana-redirect-slash@kubernetescrd,grafana-grafana-iframe-sameorigin@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: k3s.local
+      http:
+        paths:
+          - path: /grafana
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000

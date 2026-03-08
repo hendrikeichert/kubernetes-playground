@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kafka-connect
+  namespace: kafka-connect
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.middlewares: kafka-connect-kafka-connect-redirect-slash@kubernetescrd,kafka-connect-kafka-connect-strip-prefix@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: k3s.local
+      http:
+        paths:
+          - path: /kafka-connect
+            pathType: Prefix
+            backend:
+              service:
+                name: kafka-connect
+                port:
+                  number: 8083

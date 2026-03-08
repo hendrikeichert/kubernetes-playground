@@ -21,11 +21,11 @@ spec:
             - containerPort: 80
           resources:
             requests:
-              cpu: "25m"
-              memory: "64Mi"
+              cpu: "20m"
+              memory: "48Mi"
             limits:
-              cpu: "200m"
-              memory: "128Mi"
+              cpu: "100m"
+              memory: "96Mi"
           volumeMounts:
             - name: webui-index-html
               mountPath: /usr/share/nginx/html/index.html

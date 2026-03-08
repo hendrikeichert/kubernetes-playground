@@ -6,8 +6,9 @@ metadata:
   namespace: spicedb
 type: Opaque
 stringData:
-  # password
-  postgres-password: cGFzc3dvcmQgLW4K
+  SPICEDB_DB_USER: spicedb
+  SPICEDB_DB_PASSWORD: spicedb
+  SPICEDB_GRPC_PRESHARED_KEY: your-secret-key
 
 ---
 # spicedb-migration.yaml
@@ -26,13 +27,25 @@ spec:
         env:
         - name: SPICEDB_DATASTORE_ENGINE
           value: "postgres"
-        - name: SPICEDB_DATASTORE_CONN_URI          
-          value: "postgres://admin:password@postgres.postgresql.svc.cluster.local:5432/spicedb?sslmode=disable"
-        - name: POSTGRES_PASSWORD
+        - name: SPICEDB_DB_USER
           valueFrom:
             secretKeyRef:
               name: spicedb-postgres-secret
-              key: postgres-password
+              key: SPICEDB_DB_USER
+        - name: SPICEDB_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spicedb-postgres-secret
+              key: SPICEDB_DB_PASSWORD
+        - name: SPICEDB_DATASTORE_CONN_URI
+          value: "postgres://$(SPICEDB_DB_USER):$(SPICEDB_DB_PASSWORD)@postgresql.postgresql.svc.cluster.local:5432/spicedb?sslmode=disable"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
       restartPolicy: OnFailure
 ---
 # spicedb-deployment.yaml
@@ -60,16 +73,31 @@ spec:
         - containerPort: 8443  # HTTP port
         env:
         - name: SPICEDB_GRPC_PRESHARED_KEY
-          value: "your-secret-key" # Replace with a secure key
-        - name: SPICEDB_DATASTORE_ENGINE
-          value: "postgres"
-        - name: SPICEDB_DATASTORE_CONN_URI
-          value: "postgres://admin:password@postgres.postgresql.svc.cluster.local:5432/spicedb?sslmode=disable"
-        - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
               name: spicedb-postgres-secret
-              key: postgres-password
+              key: SPICEDB_GRPC_PRESHARED_KEY
+        - name: SPICEDB_DATASTORE_ENGINE
+          value: "postgres"
+        - name: SPICEDB_DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: spicedb-postgres-secret
+              key: SPICEDB_DB_USER
+        - name: SPICEDB_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: spicedb-postgres-secret
+              key: SPICEDB_DB_PASSWORD
+        - name: SPICEDB_DATASTORE_CONN_URI
+          value: "postgres://$(SPICEDB_DB_USER):$(SPICEDB_DB_PASSWORD)@postgresql.postgresql.svc.cluster.local:5432/spicedb?sslmode=disable"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
 
 ---
 apiVersion: v1

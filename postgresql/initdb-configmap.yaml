@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-initdb
+  namespace: postgresql
+data:
+  01-init-app-databases.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    CAMUNDA_DB_PASSWORD_ESCAPED="${CAMUNDA_DB_PASSWORD//\'/'\''}"
+    KEYCLOAK_DB_PASSWORD_ESCAPED="${KEYCLOAK_DB_PASSWORD//\'/'\''}"
+    SPICEDB_DB_PASSWORD_ESCAPED="${SPICEDB_DB_PASSWORD//\'/'\''}"
+
+    if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_roles WHERE rolname='${CAMUNDA_DB_USER}'" | grep -q 1; then
+      psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c "CREATE ROLE \"${CAMUNDA_DB_USER}\" LOGIN PASSWORD '${CAMUNDA_DB_PASSWORD_ESCAPED}'"
+    fi
+
+    if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_roles WHERE rolname='${KEYCLOAK_DB_USER}'" | grep -q 1; then
+      psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c "CREATE ROLE \"${KEYCLOAK_DB_USER}\" LOGIN PASSWORD '${KEYCLOAK_DB_PASSWORD_ESCAPED}'"
+    fi
+
+    if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_roles WHERE rolname='${SPICEDB_DB_USER}'" | grep -q 1; then
+      psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c "CREATE ROLE \"${SPICEDB_DB_USER}\" LOGIN PASSWORD '${SPICEDB_DB_PASSWORD_ESCAPED}'"
+    fi
+
+    if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_database WHERE datname='${CAMUNDA_DB}'" | grep -q 1; then
+      psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c "CREATE DATABASE \"${CAMUNDA_DB}\" OWNER \"${CAMUNDA_DB_USER}\""
+    fi
+
+    if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_database WHERE datname='${KEYCLOAK_DB}'" | grep -q 1; then
+      psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c "CREATE DATABASE \"${KEYCLOAK_DB}\" OWNER \"${KEYCLOAK_DB_USER}\""
+    fi
+
+    if ! psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_database WHERE datname='${SPICEDB_DB}'" | grep -q 1; then
+      psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c "CREATE DATABASE \"${SPICEDB_DB}\" OWNER \"${SPICEDB_DB_USER}\""
+    fi
+
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c "GRANT ALL PRIVILEGES ON DATABASE \"${CAMUNDA_DB}\" TO \"${CAMUNDA_DB_USER}\""
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c "GRANT ALL PRIVILEGES ON DATABASE \"${KEYCLOAK_DB}\" TO \"${KEYCLOAK_DB_USER}\""
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c "GRANT ALL PRIVILEGES ON DATABASE \"${SPICEDB_DB}\" TO \"${SPICEDB_DB_USER}\""

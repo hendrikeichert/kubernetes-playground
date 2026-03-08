@@ -2,10 +2,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kafka-connect
-  namespace: kafka
+  namespace: kafka-connect
 spec:
   ports:
   - port: 8083
+    targetPort: 8083
     name: rest-api
   selector:
     app: kafka-connect
@@ -14,7 +15,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kafka-connect
-  namespace: kafka
+  namespace: kafka-connect
 spec:
   replicas: 1
   selector:
@@ -25,17 +26,20 @@ spec:
       labels:
         app: kafka-connect
     spec:
+      enableServiceLinks: false
       containers:
       - name: kafka-connect
-        #image: confluentinc/cp-kafka-connect
-        image: custom-kafka-connect:0.0.1
+        image: custom-kafka-connect:0.0.3
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8083
         env:
         - name: CONNECT_BOOTSTRAP_SERVERS
-          value: "kafka:9092"
+          value: "kafka.confluent.svc.cluster.local:9092"
         - name: CONNECT_REST_ADVERTISED_HOST_NAME
-          value: "kafka-connect"
+          value: "kafka-connect.kafka-connect.svc.cluster.local"
+        - name: CONNECT_REST_PORT
+          value: "8083"
         - name: CONNECT_GROUP_ID
           value: "connect-cluster"
         - name: CONNECT_CONFIG_STORAGE_TOPIC
@@ -55,11 +59,22 @@ spec:
         - name: CONNECT_STATUS_STORAGE_REPLICATION_FACTOR
           value: "1"
         - name: CONNECT_PLUGIN_PATH
-          value: "/usr/share/java,/usr/share/confluent-hub-components,/usr/local/share/kafka/plugins"
-     #   volumeMounts:
-     #   - name: jdbc-driver
-     #     mountPath: "/usr/share/confluent-hub-components"
-     # volumes:
-     # - name: jdbc-driver
-     #   hostPath:
-     #     path: "/tmp/kafka-connect-jdbc"  # Local path with the JAR
+          value: "/usr/share/confluent-hub-components"
+        - name: CONNECT_LOG4J_ROOT_LOGLEVEL
+          value: "INFO"
+        - name: KAFKA_HEAP_OPTS
+          value: "-Xms128m -Xmx256m"
+        resources:
+          requests:
+            memory: "384Mi"
+            cpu: "100m"
+          limits:
+            memory: "768Mi"
+            cpu: "400m"
+        volumeMounts:
+        - name: connector-templates
+          mountPath: /etc/kafka-connect/connectors
+      volumes:
+      - name: connector-templates
+        configMap:
+          name: kafka-connect-postgres-sink

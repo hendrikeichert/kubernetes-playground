@@ -1,51 +1,60 @@
-# otel-config.yaml
-apiVersion: v1
+# OpenTelemetry Collector configuration for Kubernetes deployment
 kind: ConfigMap
 metadata:
   name: otel-collector-config
-  namespace: observability
 data:
   otel-collector-config.yaml: |
     receivers:
-      hostmetrics:
-        collection_interval: 10s
-        scrapers:
-          cpu:
-          memory:
-          disk:
-          network:
-    exporters:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
       prometheus:
-        endpoint: "0.0.0.0:8889"
-        namespace: otel
+        config:
+          scrape_configs:
+            - job_name: alloy
+              scrape_interval: 30s
+              static_configs:
+                - targets: ["alloy.otel.svc.cluster.local:12345"]
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+      batch:
+        send_batch_size: 1024
+        timeout: 5s
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    exporters:
+      debug:
+        verbosity: normal
+      prometheus:
+        endpoint: 0.0.0.0:8889
+
     service:
+      extensions: [health_check]
       pipelines:
         metrics:
-          receivers: [hostmetrics]
-          exporters: [prometheus]
+          receivers: [otlp, prometheus]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus, debug]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [debug]
+
 ---
-# otel-service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: otel-collector
-  namespace: observability
-spec:
-  selector:
-    app: otel-collector
-  ports:
-  - name: prometheus
-    port: 8889
-    targetPort: 8889
-  type: ClusterIP
----
-# otel-deployment.yaml
-# otel-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: otel-collector
-  namespace: observability
+  namespace: otel
 spec:
   replicas: 1
   selector:
@@ -57,21 +66,59 @@ spec:
         app: otel-collector
     spec:
       containers:
-      - name: otel-collector
-        image: otel/opentelemetry-collector:latest
-        command:
-          - "/otelcol"
-          - "--config=/conf/otel-collector-config.yaml"
-        volumeMounts:
-        - name: otel-config
-          mountPath: /conf
-        ports:
-        - containerPort: 8889
-          name: prometheus
+        - name: otel-collector
+          image: otel/opentelemetry-collector:0.114.0
+          args:
+            - --config=/conf/otel-collector-config.yaml
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+            - containerPort: 4318
+              name: otlp-http
+            - containerPort: 8889
+              name: prom-export
+            - containerPort: 13133
+              name: health
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "384Mi"
+          volumeMounts:
+            - name: config-vol
+              mountPath: /conf
       volumes:
-      - name: otel-config
-        configMap:
-          name: otel-collector-config
-          items:
-          - key: otel-collector-config.yaml
-            path: otel-collector-config.yaml
+        - name: config-vol
+          configMap:
+            name: otel-collector-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: otel
+  labels:
+    app: otel-collector
+spec:
+  selector:
+    app: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    - name: prom-export
+      port: 8889
+      targetPort: 8889
+      protocol: TCP
+    - name: health
+      port: 13133
+      targetPort: 13133
+      protocol: TCP

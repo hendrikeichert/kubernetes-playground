@@ -19,3 +19,10 @@ spec:
           image: edenhill/kcat:1.7.0
           command: ["/bin/sh"]
           args: ["-c", "trap : TERM INT; sleep 1000 & wait"]
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"

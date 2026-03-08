@@ -1,8 +1,8 @@
+# prometheus.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: prometheus
-  namespace: observability
+  name: prometheus  
   labels:
     app: prometheus
 spec:
@@ -17,7 +17,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: observability
+  namespace: prometheus
 spec:
   replicas: 1
   selector:
@@ -34,6 +34,15 @@ spec:
         args:
         - "--config.file=/etc/prometheus/prometheus.yml"
         - "--storage.tsdb.path=/prometheus"
+        - "--web.external-url=https://k3s.local/prometheus/"
+        - "--web.route-prefix=/"
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "300m"
+            memory: "512Mi"
         ports:
         - containerPort: 9090
         volumeMounts:
@@ -48,7 +57,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-config
-  namespace: observability
+  namespace: prometheus
 data:
   prometheus.yml: |
     global:
@@ -73,3 +82,63 @@ data:
         regex: (.+):(?:\d+);(\d+)
         replacement: $1:$2
         target_label: __address__
+    - job_name: 'otel-collector'
+      scrape_interval: 30s
+      static_configs:
+      - targets: ['otel-collector.otel.svc.cluster.local:8889']
+    - job_name: 'alloy'
+      scrape_interval: 30s
+      static_configs:
+      - targets: ['alloy.otel.svc.cluster.local:12345']
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: prometheus-redirect-slash
+  namespace: prometheus
+spec:
+  redirectRegex:
+    regex: ^https?://([^/]+)/prometheus$
+    replacement: https://$1/prometheus/
+    permanent: false
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: prometheus-strip-prefix
+  namespace: prometheus
+spec:
+  stripPrefix:
+    prefixes:
+      - /prometheus
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: prometheus-iframe-sameorigin
+  namespace: prometheus
+spec:
+  headers:
+    customFrameOptionsValue: "SAMEORIGIN"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prometheus
+  namespace: prometheus
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.middlewares: prometheus-prometheus-redirect-slash@kubernetescrd,prometheus-prometheus-strip-prefix@kubernetescrd,prometheus-prometheus-iframe-sameorigin@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: k3s.local
+      http:
+        paths:
+          - path: /prometheus
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  number: 9090

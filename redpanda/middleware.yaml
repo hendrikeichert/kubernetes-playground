@@ -1,0 +1,20 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redpanda-redirect-slash
+  namespace: redpanda
+spec:
+  redirectRegex:
+    regex: ^https?://([^/]+)/redpanda$
+    replacement: https://$1/redpanda/
+    permanent: false
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redpanda-strip-prefix
+  namespace: redpanda
+spec:
+  stripPrefix:
+    prefixes:
+      - /redpanda

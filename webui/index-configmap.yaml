@@ -83,7 +83,9 @@ data:
           <h1>WebUI</h1>
           <details open>
             <summary>Databases</summary>
-            <a class="tree-leaf" href="#" data-target="/adminer/">Adminer (PostgreSQL & MongoDB)</a>
+            <a class="tree-leaf" href="#" data-target="__adminer_pg__">Adminer Preset: PostgreSQL</a>
+            <a class="tree-leaf" href="#" data-target="__adminer_mongo__">Adminer Preset: MongoDB</a>
+            <a class="tree-leaf" href="#" data-target="__adminer_es__">Adminer Preset: Elasticsearch</a>
             <a class="tree-leaf" href="#" data-target="__es_test__">Elasticsearch Test</a>
           </details>
           <details open>
@@ -93,10 +95,27 @@ data:
             <a class="tree-leaf" href="#" data-target="/camunda/identity">Camunda Identity</a>
           </details>
           <details open>
+            <summary>Identity & Access</summary>
+            <a class="tree-leaf" href="#" data-target="/keycloak/">Keycloak</a>
+            <a class="tree-leaf" href="#" data-target="/dex/.well-known/openid-configuration">Dex Well-Known (OIDC Discovery)</a>
+            <a class="tree-leaf" href="#" data-target="/dex/auth?client_id=example-app&redirect_uri=http%3A%2F%2F127.0.0.1%3A5555%2Fcallback&response_type=code&scope=openid&state=webui&nonce=webui">Dex Login</a>
+          </details>          
+          <details open>
             <summary>Dashboard</summary>
             <a class="tree-leaf" href="#" data-target="__health__">Service Health Dashboard</a>
             <a class="tree-leaf" href="#" data-target="__pod_status__">Pod Status</a>
             <a class="tree-leaf" href="#" data-target="__config__">Service Configuration</a>
+            <a class="tree-leaf" href="#" data-target="/dashboard-api/swagger">Dashboard API Swagger</a>
+          </details>
+          <details open>
+            <summary>Streaming</summary>
+            <a class="tree-leaf" href="#" data-target="/redpanda/">Redpanda Console WebUI</a>
+            <a class="tree-leaf" href="#" data-target="/kafka-connect/">Kafka Connect REST API</a>
+          </details>
+          <details open>
+            <summary>Observability</summary>
+            <a class="tree-leaf" href="#" data-target="/prometheus/">Prometheus UI</a>
+            <a class="tree-leaf" href="#" data-target="/grafana/">Grafana UI</a>
           </details>
         </aside>
         <main class="content">
@@ -114,6 +133,77 @@ data:
               .replaceAll('>', '&gt;')
               .replaceAll('"', '&quot;')
               .replaceAll("'", '&#39;');
+          }
+
+          function safeNumber(value) {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : 0;
+          }
+
+          function formatCpuMilli(value) {
+            const milli = safeNumber(value);
+            if (milli >= 1000) {
+              return `${(milli / 1000).toFixed(2)} cores (${Math.round(milli)}m)`;
+            }
+            return `${Math.round(milli)}m`;
+          }
+
+          function formatBytes(value) {
+            const bytes = safeNumber(value);
+            const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+            let scaled = bytes;
+            let unitIndex = 0;
+            while (scaled >= 1024 && unitIndex < units.length - 1) {
+              scaled /= 1024;
+              unitIndex += 1;
+            }
+            const precision = scaled >= 10 || unitIndex === 0 ? 1 : 2;
+            return `${scaled.toFixed(precision)} ${units[unitIndex]}`;
+          }
+
+          function toPercent(value, limit) {
+            if (limit <= 0) {
+              return 0;
+            }
+            const pct = (value / limit) * 100;
+            return Math.max(0, Math.min(100, pct));
+          }
+
+          function formatPercent(value, limit) {
+            if (safeNumber(limit) <= 0) {
+              return 'n/a';
+            }
+            return `${toPercent(value, limit).toFixed(1)}%`;
+          }
+
+          function renderResourceBar(label, usageValue, requestValue, limitValue, usageText, requestText, limitText) {
+            const current = safeNumber(usageValue);
+            const request = safeNumber(requestValue);
+            const limit = safeNumber(limitValue);
+
+            if (limit <= 0) {
+              return `
+                <div style="margin-bottom:8px;">
+                  <div style="font-size:12px;font-weight:bold;">${escapeHtml(label)}: no limit</div>
+                  <div style="font-size:12px;color:#666;">Current ${escapeHtml(usageText || 'n/a')} | Request ${escapeHtml(requestText || 'n/a')} | Limit n/a</div>
+                </div>
+              `;
+            }
+
+            const currentPct = toPercent(current, limit);
+            const requestPct = toPercent(request, limit);
+
+            return `
+              <div style="margin-bottom:8px;">
+                <div style="font-size:12px;font-weight:bold;">${escapeHtml(label)}</div>
+                <div style="position:relative;height:14px;background:#f2f4f7;border:1px solid #f59e0b;border-radius:4px;overflow:hidden;">
+                  <div style="position:absolute;left:0;top:0;bottom:0;width:${requestPct}%;background:#3b82f6;opacity:0.55;"></div>
+                  <div style="position:absolute;left:0;top:0;bottom:0;width:${currentPct}%;background:#22c55e;opacity:0.8;"></div>
+                  <div style="position:absolute;right:0;top:0;bottom:0;width:2px;background:#f59e0b;"></div>
+                </div>
+                <div style="font-size:12px;color:#666;">Current ${escapeHtml(usageText || 'n/a')} | Request ${escapeHtml(requestText || 'n/a')} | Limit ${escapeHtml(limitText || 'n/a')}</div>
+              </div>
+            `;
           }
 
           function setActiveLink(activeLink) {
@@ -169,9 +259,18 @@ data:
               { name: 'PostgreSQL Service', url: '/dashboard-api/health/postgres', type: 'dashboard-api' },
               { name: 'MongoDB Service', url: '/dashboard-api/health/mongodb', type: 'dashboard-api' },
               { name: 'Elasticsearch Service', url: '/dashboard-api/health/elasticsearch', type: 'dashboard-api' },
+              { name: 'Confluent Kafka', url: '/dashboard-api/health/kafka', type: 'dashboard-api' },
+              { name: 'Confluent Schema Registry', url: '/dashboard-api/health/schema-registry', type: 'dashboard-api' },
+              { name: 'Redpanda Console', url: '/dashboard-api/health/redpanda-console', type: 'dashboard-api' },
+              { name: 'Kafka Connect', url: '/dashboard-api/health/kafka-connect', type: 'dashboard-api' },
+              { name: 'OTel Collector Service', url: '/dashboard-api/health/otel', type: 'dashboard-api' },
+              { name: 'Prometheus Service', url: '/dashboard-api/health/prometheus', type: 'dashboard-api' },
+              { name: 'Grafana Service', url: '/dashboard-api/health/grafana', type: 'dashboard-api' },
               { name: 'Camunda Operate', url: '/camunda/operate' },
               { name: 'Camunda Tasklist', url: '/camunda/tasklist' },
-              { name: 'Camunda Identity', url: '/camunda/identity' }
+              { name: 'Camunda Identity', url: '/camunda/identity' },
+              { name: 'Keycloak', url: '/keycloak/' },
+              { name: 'Dex Service', url: '/dashboard-api/health/dex', type: 'dashboard-api' },
             ];
 
             const results = await Promise.all(
@@ -304,23 +403,69 @@ data:
 
               const payload = await response.json();
               const services = Array.isArray(payload.services) ? payload.services : [];
+              const totalCpuUsageMilli = services.reduce(
+                (sum, service) => sum + safeNumber(service.cpuUsageMilli),
+                0
+              );
+              const totalCpuRequestMilli = services.reduce(
+                (sum, service) => sum + safeNumber(service.cpuRequestMilli),
+                0
+              );
+              const totalCpuLimitMilli = services.reduce(
+                (sum, service) => sum + safeNumber(service.cpuLimitMilli),
+                0
+              );
+              const totalMemoryUsageBytes = services.reduce(
+                (sum, service) => sum + safeNumber(service.memoryUsageBytes),
+                0
+              );
+              const totalMemoryRequestBytes = services.reduce(
+                (sum, service) => sum + safeNumber(service.memoryRequestBytes),
+                0
+              );
+              const totalMemoryLimitBytes = services.reduce(
+                (sum, service) => sum + safeNumber(service.memoryLimitBytes),
+                0
+              );
+              const totalCpuCurrentPct = formatPercent(totalCpuUsageMilli, totalCpuLimitMilli);
+              const totalCpuRequestPct = formatPercent(totalCpuRequestMilli, totalCpuLimitMilli);
+              const totalMemoryCurrentPct = formatPercent(totalMemoryUsageBytes, totalMemoryLimitBytes);
+              const totalMemoryRequestPct = formatPercent(totalMemoryRequestBytes, totalMemoryLimitBytes);
 
               const rows = services
                 .map((service) => {
                   const status = service.status || 'UNKNOWN';
                   const color = status === 'UP' ? '#1f8b24' : status === 'DEGRADED' ? '#b26a00' : '#b42318';
                   const pods = Array.isArray(service.pods) ? service.pods : [];
+                  const cpuBar = renderResourceBar(
+                    'CPU',
+                    service.cpuUsageMilli,
+                    service.cpuRequestMilli,
+                    service.cpuLimitMilli,
+                    service.cpuUsage || 'n/a',
+                    service.cpuRequest || 'n/a',
+                    service.cpuLimit || 'n/a'
+                  );
+                  const memoryBar = renderResourceBar(
+                    'Memory',
+                    service.memoryUsageBytes,
+                    service.memoryRequestBytes,
+                    service.memoryLimitBytes,
+                    service.memoryUsage || 'n/a',
+                    service.memoryRequest || 'n/a',
+                    service.memoryLimit || 'n/a'
+                  );
                   const podDetails = pods.length === 0
                     ? '<em>no pods</em>'
                     : pods
-                        .map((pod) => `${escapeHtml(pod.name)} [${escapeHtml(pod.phase)} | ${pod.readyContainers}/${pod.totalContainers} ready | restarts ${pod.restartCount}]`)
+                        .map((pod) => `${escapeHtml(pod.name)} [${escapeHtml(pod.phase)} | ${pod.readyContainers}/${pod.totalContainers} ready | CPU ${escapeHtml(pod.cpuUsage || 'n/a')} (req ${escapeHtml(pod.cpuRequest || 'n/a')}, lim ${escapeHtml(pod.cpuLimit || 'n/a')}) | MEM ${escapeHtml(pod.memoryUsage || 'n/a')} (req ${escapeHtml(pod.memoryRequest || 'n/a')}, lim ${escapeHtml(pod.memoryLimit || 'n/a')}) | restarts ${pod.restartCount}]`)
                         .join('<br/>');
 
                   return `
                     <tr>
                       <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(service.service || 'unknown')}</td>
                       <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(service.namespace || '-')}</td>
-                      <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(service.selector || '-')}</td>
+                      <td style="padding:8px;border-bottom:1px solid #eee;min-width:330px;">${cpuBar}${memoryBar}</td>
                       <td style="padding:8px;border-bottom:1px solid #eee;color:${color};font-weight:bold;">${escapeHtml(status)}</td>
                       <td style="padding:8px;border-bottom:1px solid #eee;">${escapeHtml(String(service.readyPods ?? 0))}/${escapeHtml(String(service.totalPods ?? 0))}</td>
                       <td style="padding:8px;border-bottom:1px solid #eee;font-family:monospace;white-space:pre-wrap;word-break:break-word;">${podDetails}</td>
@@ -336,12 +481,24 @@ data:
                 <body style="font-family:Arial,sans-serif;padding:16px;">
                   <h2 style="margin-top:0;">Pod Status</h2>
                   <p><strong>Overall:</strong> ${escapeHtml(payload.status || 'UNKNOWN')}</p>
+                  <div style="margin:12px 0 14px;padding:10px 12px;border:1px solid #ddd;border-radius:6px;background:#f8f9fb;">
+                    <div style="font-size:13px;font-weight:bold;margin-bottom:4px;">Total Pod Usage</div>
+                    <div style="font-size:13px;color:#333;">CPU Current: <strong>${escapeHtml(formatCpuMilli(totalCpuUsageMilli))}</strong> (${escapeHtml(totalCpuCurrentPct)}) | Request: <strong>${escapeHtml(formatCpuMilli(totalCpuRequestMilli))}</strong> (${escapeHtml(totalCpuRequestPct)}) | Limit: <strong>${escapeHtml(formatCpuMilli(totalCpuLimitMilli))}</strong></div>
+                    <div style="font-size:13px;color:#333;margin-top:4px;">Memory Current: <strong>${escapeHtml(formatBytes(totalMemoryUsageBytes))}</strong> (${escapeHtml(totalMemoryCurrentPct)}) | Request: <strong>${escapeHtml(formatBytes(totalMemoryRequestBytes))}</strong> (${escapeHtml(totalMemoryRequestPct)}) | Limit: <strong>${escapeHtml(formatBytes(totalMemoryLimitBytes))}</strong></div>
+                  </div>
+                  <p style="font-size:12px;color:#444;">
+                    <span style="display:inline-block;width:10px;height:10px;background:#3b82f6;vertical-align:middle;margin-right:4px;"></span>Request
+                    &nbsp;&nbsp;
+                    <span style="display:inline-block;width:10px;height:10px;background:#22c55e;vertical-align:middle;margin-right:4px;"></span>Current
+                    &nbsp;&nbsp;
+                    <span style="display:inline-block;width:10px;height:10px;background:#f59e0b;vertical-align:middle;margin-right:4px;"></span>Limit
+                  </p>
                   <table style="width:100%;border-collapse:collapse;">
                     <thead>
                       <tr>
                         <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Service</th>
                         <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Namespace</th>
-                        <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Selector</th>
+                        <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Resource Bars</th>
                         <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Status</th>
                         <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Ready Pods</th>
                         <th style="text-align:left;padding:8px;border-bottom:2px solid #ddd;">Pods</th>
@@ -366,6 +523,90 @@ data:
             }
           }
 
+          function openAdminerPreset(preset) {
+            const presets = {
+              postgres: {
+                driver: 'pgsql',
+                server: 'postgresql.postgresql.svc.cluster.local',
+                username: 'camunda',
+                db: 'camunda'
+              },
+              mongo: {
+                driver: 'mongo',
+                server: 'mongodb.mongodb.svc.cluster.local:27017',
+                username: 'admin',
+                db: 'admin'
+              },
+              elasticsearch: {
+                driver: '',
+                server: '',
+                username: '',
+                db: ''
+              }
+            };
+
+            const selected = presets[preset];
+            if (!selected) {
+              viewer.removeAttribute('srcdoc');
+              viewer.src = '/adminer/';
+              return;
+            }
+
+            if (preset === 'elasticsearch') {
+              viewer.srcdoc = `
+                <!doctype html>
+                <html lang="en">
+                <head><meta charset="UTF-8" /><title>Elasticsearch Preset</title></head>
+                <body style="font-family:Arial,sans-serif;padding:16px;">
+                  <h2 style="margin-top:0;">Elasticsearch Preset</h2>
+                  <p>Adminer does not support Elasticsearch as a database driver.</p>
+                  <p>Use these direct Elasticsearch endpoints:</p>
+                  <ul>
+                    <li><a href="/elasticsearch/" target="_self">/elasticsearch/</a></li>
+                    <li><a href="/elasticsearch/_cluster/health" target="_self">/elasticsearch/_cluster/health</a></li>
+                  </ul>
+                </body>
+                </html>
+              `;
+              return;
+            }
+
+            viewer.removeAttribute('srcdoc');
+            viewer.src = '/adminer/';
+            viewer.onload = () => {
+              try {
+                const iframeDoc = viewer.contentDocument || viewer.contentWindow?.document;
+                if (!iframeDoc) {
+                  return;
+                }
+                const form = iframeDoc.querySelector('form');
+                if (!form) {
+                  return;
+                }
+
+                const driverField = form.querySelector("select[name='auth[driver]']");
+                const serverField = form.querySelector("input[name='auth[server]']");
+                const usernameField = form.querySelector("input[name='auth[username]']");
+                const dbField = form.querySelector("input[name='auth[db]']");
+
+                if (driverField) {
+                  driverField.value = selected.driver;
+                  driverField.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                if (serverField) {
+                  serverField.value = selected.server;
+                }
+                if (usernameField) {
+                  usernameField.value = selected.username;
+                }
+                if (dbField) {
+                  dbField.value = selected.db;
+                }
+              } catch (error) {
+              }
+            };
+          }
+
           function showServiceConfiguration() {
             viewer.srcdoc = `
               <!doctype html>
@@ -381,10 +622,32 @@ data:
                   <li><a href="/elasticsearch/" target="_self">https://k3s.local/elasticsearch</a></li>
                   <li><strong>PostgreSQL TCP:</strong> k3s.local:443 (TLS/SNI)</li>
                   <li><a href="/adminer/" target="_self">https://k3s.local/adminer</a></li>
+                  <li><a href="/redpanda/" target="_self">https://k3s.local/redpanda/</a></li>
                 </ul>
                 <h3>Configured Endpoints</h3>
                 <ul>
                   <li><a href="/adminer/" target="_self">/adminer/</a></li>
+                  <li><a href="/prometheus/" target="_self">/prometheus/</a></li>
+                  <li><a href="/grafana/" target="_self">/grafana/</a></li>
+                  <li><a href="/keycloak/" target="_self">/keycloak/</a></li>
+                  <li><a href="/dashboard-api/health" target="_self">/dashboard-api/health</a></li>
+                  <li><a href="/dashboard-api/health/postgres" target="_self">/dashboard-api/health/postgres</a></li>
+                  <li><a href="/dashboard-api/health/mongodb" target="_self">/dashboard-api/health/mongodb</a></li>
+                  <li><a href="/dashboard-api/health/elasticsearch" target="_self">/dashboard-api/health/elasticsearch</a></li>
+                  <li><a href="/dashboard-api/health/kafka" target="_self">/dashboard-api/health/kafka</a></li>
+                  <li><a href="/dashboard-api/health/schema-registry" target="_self">/dashboard-api/health/schema-registry</a></li>
+                  <li><a href="/dashboard-api/health/redpanda-console" target="_self">/dashboard-api/health/redpanda-console</a></li>
+                  <li><a href="/dashboard-api/health/kafka-connect" target="_self">/dashboard-api/health/kafka-connect</a></li>
+                  <li><a href="/redpanda/" target="_self">/redpanda/</a></li>
+                  <li><a href="/kafka-connect/" target="_self">/kafka-connect/</a></li>
+                  <li><a href="/dashboard-api/health/otel" target="_self">/dashboard-api/health/otel</a></li>
+                  <li><a href="/dashboard-api/health/prometheus" target="_self">/dashboard-api/health/prometheus</a></li>
+                  <li><a href="/dashboard-api/health/prometheus/targets" target="_self">/dashboard-api/health/prometheus/targets</a></li>
+                  <li><a href="/dashboard-api/health/grafana" target="_self">/dashboard-api/health/grafana</a></li>
+                  <li><a href="/dashboard-api/health/dex" target="_self">/dashboard-api/health/dex</a></li>
+                  <li><a href="/dashboard-api/pod-status" target="_self">/dashboard-api/pod-status</a></li>
+                  <li><a href="/dashboard-api/swagger" target="_self">/dashboard-api/swagger</a></li>
+                  <li><a href="/dashboard-api/swagger.json" target="_self">/dashboard-api/swagger.json</a></li>
                   <li><a href="/camunda/operate" target="_self">/camunda/operate</a></li>
                   <li><a href="/camunda/tasklist" target="_self">/camunda/tasklist</a></li>
                   <li><a href="/camunda/identity" target="_self">/camunda/identity</a></li>
@@ -393,6 +656,8 @@ data:
                 <ul>
                   <li><strong>PostgreSQL</strong>: System=PostgreSQL, Server=postgresql.postgresql.svc.cluster.local, Username=camunda, Password=camunda, Database=camunda</li>
                   <li><strong>MongoDB</strong>: System=MongoDB, Server=mongodb.mongodb.svc.cluster.local:27017, Username=admin, Password=password, Database=admin</li>
+                  <li><strong>Elasticsearch</strong>: Adminer is not compatible, preset opens Elasticsearch URLs instead</li>
+                  <li><strong>Quick Access:</strong> use the left menu entries "Adminer Preset: PostgreSQL", "Adminer Preset: MongoDB", and "Adminer Preset: Elasticsearch"</li>
                 </ul>
                 <h3>PostgreSQL Service</h3>
                 <ul>
@@ -406,6 +671,7 @@ data:
                   <li><strong>External Port:</strong> 443 (Traefik TCP)</li>
                   <li><strong>Database:</strong> camunda</li>
                   <li><strong>JDBC:</strong> jdbc:postgresql://k3s.local:443/camunda?sslmode=require</li>
+                  <li><strong>Health Endpoint:</strong> <a href="/dashboard-api/health/postgres" target="_self">/dashboard-api/health/postgres</a></li>
                 </ul>
                 <h3>Elasticsearch Service</h3>
                 <ul>
@@ -415,6 +681,7 @@ data:
                   <li><strong>Ports:</strong> 9200/TCP (HTTP), 9300/TCP (transport)</li>
                   <li><strong>Image:</strong> docker.elastic.co/elasticsearch/elasticsearch:8.19.12</li>
                   <li><strong>Readiness Path:</strong> /_cluster/health?wait_for_status=yellow&timeout=1s</li>
+                  <li><strong>Health Endpoint:</strong> <a href="/dashboard-api/health/elasticsearch" target="_self">/dashboard-api/health/elasticsearch</a></li>
                 </ul>
                 <h3>MongoDB Service</h3>
                 <ul>
@@ -424,6 +691,76 @@ data:
                   <li><strong>Port:</strong> 27017/TCP</li>
                   <li><strong>Image:</strong> mongo:6.0</li>
                   <li><strong>External Admin UI:</strong> /adminer/</li>
+                  <li><strong>Health Endpoint:</strong> <a href="/dashboard-api/health/mongodb" target="_self">/dashboard-api/health/mongodb</a></li>
+                </ul>
+                <h3>OTel Services</h3>
+                <ul>
+                  <li><strong>Collector Namespace:</strong> otel</li>
+                  <li><strong>Collector Service:</strong> otel-collector</li>
+                  <li><strong>Collector Health Endpoint:</strong> <a href="/dashboard-api/health/otel" target="_self">/dashboard-api/health/otel</a></li>
+                  <li><strong>Collector OTLP:</strong> otel-collector.otel.svc.cluster.local:4317 (gRPC), :4318 (HTTP)</li>
+                  <li><strong>Alloy Service:</strong> alloy.otel.svc.cluster.local:12345</li>
+                </ul>
+                <h3>Dex Service</h3>
+                <ul>
+                  <li><strong>Namespace:</strong> dex</li>
+                  <li><strong>Service:</strong> dex</li>
+                  <li><strong>Port:</strong> 5556/TCP</li>
+                  <li><strong>Health Endpoint:</strong> <a href="/dashboard-api/health/dex" target="_self">/dashboard-api/health/dex</a></li>
+                  <li><strong>External URL:</strong> <a href="/dex/.well-known/openid-configuration" target="_self">/dex/.well-known/openid-configuration</a></li>
+                  <li><strong>Admin Username:</strong> admin</li>
+                  <li><strong>Admin Email:</strong> admin@example.com</li>
+                  <li><strong>Admin Password:</strong> password</li>
+                </ul>
+                <h3>Confluent Services</h3>
+                <ul>
+                  <li><strong>Namespace:</strong> confluent</li>
+                  <li><strong>Kafka:</strong> kafka.confluent.svc.cluster.local:9092</li>
+                  <li><strong>Schema Registry:</strong> schema-registry.confluent.svc.cluster.local:8081</li>
+                  <li><strong>Health (Kafka):</strong> <a href="/dashboard-api/health/kafka" target="_self">/dashboard-api/health/kafka</a></li>
+                  <li><strong>Health (Schema Registry):</strong> <a href="/dashboard-api/health/schema-registry" target="_self">/dashboard-api/health/schema-registry</a></li>
+                </ul>
+                <h3>Redpanda Console</h3>
+                <ul>
+                  <li><strong>Namespace:</strong> redpanda</li>
+                  <li><strong>Service:</strong> redpanda-console.redpanda.svc.cluster.local:8080</li>
+                  <li><strong>Web URL:</strong> <a href="/redpanda/" target="_self">/redpanda/</a></li>
+                  <li><strong>Health Endpoint:</strong> <a href="/dashboard-api/health/redpanda-console" target="_self">/dashboard-api/health/redpanda-console</a></li>
+                </ul>
+                <h3>Kafka Connect Service</h3>
+                <ul>
+                  <li><strong>Namespace:</strong> kafka-connect</li>
+                  <li><strong>Service:</strong> kafka-connect.kafka-connect.svc.cluster.local:8083</li>
+                  <li><strong>Web URL:</strong> <a href="/kafka-connect/" target="_self">/kafka-connect/</a></li>
+                  <li><strong>Health Endpoint:</strong> <a href="/dashboard-api/health/kafka-connect" target="_self">/dashboard-api/health/kafka-connect</a></li>
+                  <li><strong>Kafka Bootstrap:</strong> kafka.confluent.svc.cluster.local:9092</li>
+                  <li><strong>PostgreSQL Target:</strong> postgresql.postgresql.svc.cluster.local:5432/camunda</li>
+                </ul>
+                <h3>Keycloak Service</h3>
+                <ul>
+                  <li><strong>Namespace:</strong> keycloak</li>
+                  <li><strong>Service:</strong> keycloak</li>
+                  <li><strong>Internal DNS:</strong> keycloak.keycloak.svc.cluster.local</li>
+                  <li><strong>Port:</strong> 8080/TCP</li>
+                  <li><strong>Web URL:</strong> <a href="/keycloak/" target="_self">/keycloak/</a></li>
+                </ul>
+                <h3>Prometheus Service</h3>
+                <ul>
+                  <li><strong>Namespace:</strong> prometheus</li>
+                  <li><strong>Service:</strong> prometheus</li>
+                  <li><strong>Internal DNS:</strong> prometheus.prometheus.svc.cluster.local</li>
+                  <li><strong>Port:</strong> 9090/TCP</li>
+                  <li><strong>Web URL:</strong> <a href="/prometheus/" target="_self">/prometheus/</a></li>
+                  <li><strong>Health Endpoint:</strong> <a href="/dashboard-api/health/prometheus" target="_self">/dashboard-api/health/prometheus</a></li>
+                </ul>
+                <h3>Grafana Service</h3>
+                <ul>
+                  <li><strong>Namespace:</strong> grafana</li>
+                  <li><strong>Service:</strong> grafana</li>
+                  <li><strong>Internal DNS:</strong> grafana.grafana.svc.cluster.local</li>
+                  <li><strong>Port:</strong> 3000/TCP</li>
+                  <li><strong>Web URL:</strong> <a href="/grafana/" target="_self">/grafana/</a></li>
+                  <li><strong>Health Endpoint:</strong> <a href="/dashboard-api/health/grafana" target="_self">/dashboard-api/health/grafana</a></li>
                 </ul>
               </body>
               </html>
@@ -441,6 +778,18 @@ data:
               }
               if (target === '__es_test__') {
                 showElasticsearchTest();
+                return;
+              }
+              if (target === '__adminer_pg__') {
+                openAdminerPreset('postgres');
+                return;
+              }
+              if (target === '__adminer_mongo__') {
+                openAdminerPreset('mongo');
+                return;
+              }
+              if (target === '__adminer_es__') {
+                openAdminerPreset('elasticsearch');
                 return;
               }
               if (target === '__pod_status__') {

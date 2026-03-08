@@ -1,0 +1,20 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: kafka-connect-redirect-slash
+  namespace: kafka-connect
+spec:
+  redirectRegex:
+    regex: ^https?://([^/]+)/kafka-connect$
+    replacement: https://$1/kafka-connect/
+    permanent: false
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: kafka-connect-strip-prefix
+  namespace: kafka-connect
+spec:
+  stripPrefix:
+    prefixes:
+      - /kafka-connect
