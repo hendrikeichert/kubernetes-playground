@@ -1,16 +1,10 @@
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: dex
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
     app: dex
   name: dex
-  namespace: dex
 spec:
   replicas: 1
   selector:
@@ -28,14 +22,12 @@ spec:
         command: ["/usr/local/bin/dex", "serve", "/etc/dex/cfg/config.yaml"]
 
         ports:
-        - name: https
+        - name: http
           containerPort: 5556
 
         volumeMounts:
         - name: config
           mountPath: /etc/dex/cfg
-        - name: tls
-          mountPath: /etc/dex/tls
 
         env:
         - name: GITHUB_CLIENT_ID
@@ -59,9 +51,9 @@ spec:
 
         readinessProbe:
           httpGet:
-            path: /healthz
+            path: /dex/healthz
             port: 5556
-            scheme: HTTPS
+            scheme: HTTP
       volumes:
       - name: config
         configMap:
@@ -69,26 +61,20 @@ spec:
           items:
           - key: config.yaml
             path: config.yaml
-      - name: tls
-        secret:
-          secretName: dex.example.com.tls
 ---
 kind: ConfigMap
 apiVersion: v1
 metadata:
   name: dex
-  namespace: dex
 data:
   config.yaml: |
-    issuer: https://dex.example.com:32000
+    issuer: https://k3s.local/dex
     storage:
       type: kubernetes
       config:
         inCluster: true
     web:
-      https: 0.0.0.0:5556
-      tlsCert: /etc/dex/tls/tls.crt
-      tlsKey: /etc/dex/tls/tls.key
+      http: 0.0.0.0:5556
     connectors:
     - type: github
       id: github
@@ -96,7 +82,7 @@ data:
       config:
         clientID: $GITHUB_CLIENT_ID
         clientSecret: $GITHUB_CLIENT_SECRET
-        redirectURI: https://dex.example.com:32000/callback
+        redirectURI: https://k3s.local/dex/callback
         org: kubernetes
     oauth2:
       skipApprovalScreen: true
@@ -115,22 +101,6 @@ data:
       hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
       username: "admin"
       userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: dex
-  namespace: dex
-spec:
-  type: NodePort
-  ports:
-  - name: dex
-    port: 5556
-    protocol: TCP
-    targetPort: 5556
-    nodePort: 32000
-  selector:
-    app: dex
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -164,3 +134,36 @@ subjects:
 - kind: ServiceAccount
   name: dex           # Service account assigned to the dex pod, created above
   namespace: dex  # The namespace dex is running in
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex
+spec:
+  selector:
+    app: dex
+  ports:
+    - name: http
+      port: 5556
+      targetPort: 5556
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dex
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: k3s.local
+      http:
+        paths:
+          - path: /dex
+            pathType: Prefix
+            backend:
+              service:
+                name: dex
+                port:
+                  number: 5556

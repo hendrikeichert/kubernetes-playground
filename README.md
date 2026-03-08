@@ -31,6 +31,32 @@ curl http://localhost:8083/connectors
 ## confluent, kafka connect
 https://packages.confluent.io/
 
+Apply Confluent (low-resource profile):
+```bash
+kubectl apply -k confluent
+kubectl get pods -n confluent
+```
+
+Schema Registry endpoint:
+```bash
+http://schema-registry.confluent.svc.cluster.local:8081
+```
+
+Quick smoke test from a kcat pod (or any pod with kcat installed):
+```bash
+# producer
+echo "Confluent Test Message" | kcat -P -b kafka.confluent.svc.cluster.local:9092 -t testtopic -p -1
+
+# consumer
+kcat -C -b kafka.confluent.svc.cluster.local:9092 -t testtopic -p -1 -e
+```
+
+Redpanda Console (configured for Confluent Kafka + Schema Registry):
+```bash
+kubectl apply -k redpanda
+kubectl port-forward -n redpanda svc/redpanda-console 8080:8080
+```
+
 
 ## show kafka topics
 in the kafka pod exec

@@ -3,15 +3,17 @@ kind: Kustomization
 resources:
   - namespaces.yaml
   - adminer
+  - confluent
   - elasticsearch
   - grafana
   - kafka
-  - kafka_connect
+  - kafka-connect
   - kcat
   - keycloak
   - mongodb
   - otel
   - postgresql
   - prometheus
-  - spicedb
-  - zookeeper
+  - redpanda
+  #- spicedb
+
